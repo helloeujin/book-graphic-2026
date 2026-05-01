@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>레이더 차트</title>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Pretendard', 'Noto Sans KR', sans-serif;
+      background: #fff;
+      padding: 40px 20px;
+    }
+    .container { display: inline-block; }
+
+    h1   { font-size: 17px; line-height: 22px; font-weight: 700; color: #363636; padding-bottom: 5px; }
+
+    .legend {
+      display: flex; gap: 12px; margin-bottom: 4px;
+    }
+    .legend-item {
+      display: flex; align-items: center; gap: 5px;
+      font-size: 13px; color: #363636;
+    }
+    .legend-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      display: inline-block;
+    }
+
+    .source { font-size: 13px; line-height: 17px; color: #777777; margin-top: 8px; }
+
+    .tooltip {
+      position: fixed;
+      background: rgba(255,255,255,0.95);
+      border: 1px solid #c6c6c6;
+      border-radius: 4px;
+      padding: 10px 12px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    .tooltip-title { font-size: 14px; font-weight: 600; color: #454545; }
+    .tooltip-body  { font-size: 13px; font-weight: 400; color: #636363; margin-top: 3px; }
+
+    #export-btn {
+      margin-top: 12px; padding: 8px 16px; font-size: 13px;
+      background: #000; color: #fff; border: none; border-radius: 4px;
+      cursor: pointer; font-family: 'Pretendard', sans-serif;
+    }
+    #export-btn:hover { background: #333; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <div style="border: 1px solid #aaa; padding: 16px; display: inline-block;">
+    <h1>역량별 비교</h1>
+    <div class="legend">
+      <span class="legend-item">
+        <span class="legend-dot" style="background:#a4a4a4;"></span>이전
+      </span>
+      <span class="legend-item">
+        <span class="legend-dot" style="background:#6565FF;"></span>이후
+      </span>
+    </div>
+    <div id="chart"></div>
+    <p class="source">출처: 예시 데이터</p>
+  </div>
+  <br>
+  <button id="export-btn">SVG 다운로드</button>
+</div>
+
+<div class="tooltip" id="tooltip">
+  <div class="tooltip-title" id="tt-title"></div>
+  <div class="tooltip-body"  id="tt-body"></div>
+</div>
+
+<script>
+  const axes = ['기획', '디자인', '개발', '분석', '소통'];
+  const seriesData = [
+    {
+      name: '이전',
+      color: '#a4a4a4',
+      fillColor: 'rgba(164,164,164,0.15)',
+      dotColor: '#a4a4a4',
+      values: [6, 5, 7, 4, 6]
+    },
+    {
+      name: '이후',
+      color: '#6565FF',
+      fillColor: 'rgba(101,101,255,0.12)',
+      dotColor: '#6565FF',
+      values: [8, 9, 7, 9, 8]
+    }
+  ];
+
+  const MAX_VAL = 10;
+  const LEVELS  = 4; // 동심 다각형 단계
+
+  /* ── 치수 ── */
+  const W = 236, H = 220;
+  const cx = W / 2, cy = H / 2;
+  const R  = 82; // 최대 반지름
+
+  const n    = axes.length;
+  const step = (2 * Math.PI) / n;
+  // 12시 방향 시작
+  const angle = i => -Math.PI / 2 + step * i;
+
+  /* 값 → 좌표 */
+  const polarToXY = (val, i) => ({
+    x: cx + (val / MAX_VAL) * R * Math.cos(angle(i)),
+    y: cy + (val / MAX_VAL) * R * Math.sin(angle(i))
+  });
+
+  /* ── SVG ── */
+  const svg = d3.select('#chart')
+    .append('svg')
+      .attr('width',  W)
+      .attr('height', H)
+      .attr('xmlns', 'http://www.w3.org/2000/svg');
+
+  /* ── 그리드 (동심 다각형) ── */
+  for (let lv = 1; lv <= LEVELS; lv++) {
+    const r = (lv / LEVELS) * R;
+    const pts = d3.range(n).map(i => [
+      cx + r * Math.cos(angle(i)),
+      cy + r * Math.sin(angle(i))
+    ]);
+    svg.append('polygon')
+      .attr('points', pts.map(p => p.join(',')).join(' '))
+      .attr('fill', 'none')
+      .attr('stroke', '#aaaaaa')
+      .attr('stroke-width', 1)
+      .attr('stroke-dasharray', '2')
+      .attr('stroke-opacity', 0.4);
+
+    /* tick 레이블 — 오른쪽 축 기준 */
+    if (lv < LEVELS) {
+      svg.append('text')
+        .attr('x', cx + r * Math.cos(angle(0)) + 4)
+        .attr('y', cy + r * Math.sin(angle(0)) + 4)
+        .attr('font-size', '10px')
+        .attr('fill', '#999999')
+        .attr('font-family', "Pretendard,'Noto Sans KR',sans-serif")
+        .text((MAX_VAL / LEVELS) * lv);
+    }
+  }
+
+  /* ── 축 선 ── */
+  d3.range(n).forEach(i => {
+    const end = polarToXY(MAX_VAL, i);
+    svg.append('line')
+      .attr('x1', cx).attr('y1', cy)
+      .attr('x2', end.x).attr('y2', end.y)
+      .attr('stroke', '#aaaaaa')
+      .attr('stroke-width', 1)
+      .attr('stroke-opacity', 0.4);
+  });
+
+  /* ── 축 레이블 ── */
+  const labelOffset = 14;
+  axes.forEach((ax, i) => {
+    const pt = polarToXY(MAX_VAL, i);
+    const dx = pt.x - cx, dy = pt.y - cy;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    const lx = pt.x + (dx / len) * labelOffset;
+    const ly = pt.y + (dy / len) * labelOffset;
+
+    svg.append('text')
+      .attr('x', lx)
+      .attr('y', ly)
+      .attr('text-anchor', 'middle')
+      .attr('dominant-baseline', 'central')
+      .attr('font-size', '12px')
+      .attr('font-weight', '400')
+      .attr('fill', '#636363')
+      .attr('font-family', "Pretendard,'Noto Sans KR',sans-serif")
+      .text(ax);
+  });
+
+  /* ── 시리즈 그리기 ── */
+  const tooltip = document.getElementById('tooltip');
+  const ttTitle = document.getElementById('tt-title');
+  const ttBody  = document.getElementById('tt-body');
+
+  seriesData.forEach(series => {
+    const coords = series.values.map((v, i) => polarToXY(v, i));
+    const zeroCoords = series.values.map((_, i) => polarToXY(0, i));
+
+    const pathStr = pts => pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ') + 'Z';
+
+    /* 채우기 */
+    const fillPath = svg.append('path')
+      .attr('d', pathStr(zeroCoords))
+      .attr('fill', series.fillColor)
+      .attr('stroke', 'none');
+
+    fillPath.transition().duration(800).ease(d3.easeCubicInOut)
+      .attr('d', pathStr(coords));
+
+    /* 외곽선 */
+    const strokePath = svg.append('path')
+      .attr('d', pathStr(zeroCoords))
+      .attr('fill', 'none')
+      .attr('stroke', series.color)
+      .attr('stroke-width', 1.5);
+
+    strokePath.transition().duration(800).ease(d3.easeCubicInOut)
+      .attr('d', pathStr(coords));
+
+    /* 꼭짓점 점 */
+    coords.forEach((pt, i) => {
+      svg.append('circle')
+        .attr('cx', cx).attr('cy', cy)
+        .attr('r', 4)
+        .attr('fill', series.dotColor)
+        .attr('stroke', '#fff')
+        .attr('stroke-width', 1.5)
+        .style('cursor', 'pointer')
+        .on('mousemove', function(event) {
+          d3.select(this).attr('r', 6);
+          ttTitle.textContent = `${series.name} · ${axes[i]}`;
+          ttBody.textContent  = `값: ${series.values[i]}`;
+          tooltip.style.opacity = '1';
+          tooltip.style.left = (event.clientX + 12) + 'px';
+          tooltip.style.top  = (event.clientY - 36) + 'px';
+        })
+        .on('mouseleave', function() {
+          d3.select(this).attr('r', 4);
+          tooltip.style.opacity = '0';
+        })
+        .transition().duration(800).ease(d3.easeCubicInOut)
+        .attr('cx', pt.x).attr('cy', pt.y);
+    });
+  });
+
+  /* ── SVG Export ── */
+  function exportSVG(svgEl, filename = 'radar_chart.svg') {
+    const style = document.createElement('style');
+    style.textContent = `
+      @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+      text { font-family: 'Pretendard', 'Noto Sans KR', sans-serif; }
+    `;
+    svgEl.insertBefore(style, svgEl.firstChild);
+    const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    bg.setAttribute('width', '100%'); bg.setAttribute('height', '100%'); bg.setAttribute('fill', '#FFFFFF');
+    svgEl.insertBefore(bg, svgEl.firstChild);
+    const blob = new Blob([new XMLSerializer().serializeToString(svgEl)], { type: 'image/svg+xml' });
+    const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: filename });
+    a.click();
+    URL.revokeObjectURL(a.href);
+    svgEl.removeChild(style); svgEl.removeChild(bg);
+  }
+
+  document.getElementById('export-btn').addEventListener('click', () => {
+    exportSVG(document.querySelector('svg'), 'radar_chart.svg');
+  });
+</script>
+</body>
+</html>

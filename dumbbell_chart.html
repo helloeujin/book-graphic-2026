@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>덤벨 차트</title>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Pretendard', 'Noto Sans KR', sans-serif;
+      background: #fff;
+      padding: 40px 20px;
+    }
+    .container { display: inline-block; }
+
+    h1   { font-size: 17px; line-height: 22px; font-weight: 700; color: #363636; padding-bottom: 5px; }
+    .dek { font-size: 15px; line-height: 19px; font-weight: 400; color: #777777; padding-bottom: 10px; }
+
+    .legend {
+      display: flex; gap: 12px; margin-bottom: 3px;
+    }
+    .legend-item {
+      display: flex; align-items: center; gap: 5px;
+      font-size: 13px; color: #363636;
+    }
+    .legend-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      display: inline-block;
+    }
+
+    .source { font-size: 13px; line-height: 17px; color: #777777; margin-top: 8px; }
+
+    .tooltip {
+      position: fixed;
+      background: rgba(255,255,255,0.95);
+      border: 1px solid #c6c6c6;
+      border-radius: 4px;
+      padding: 10px 12px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    .tooltip-title { font-size: 14px; font-weight: 600; color: #454545; }
+    .tooltip-body  { font-size: 13px; font-weight: 400; color: #636363; margin-top: 3px; }
+
+    #export-btn {
+      margin-top: 12px; padding: 8px 16px; font-size: 13px;
+      background: #000; color: #fff; border: none; border-radius: 4px;
+      cursor: pointer; font-family: 'Pretendard', sans-serif;
+    }
+    #export-btn:hover { background: #333; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <div style="border: 1px solid #aaa; padding: 16px; display: inline-block;">
+    <h1>항목별 전후 비교</h1>
+    <div class="legend">
+      <span class="legend-item">
+        <span class="legend-dot" style="background:#a4a4a4;"></span>이전
+      </span>
+      <span class="legend-item">
+        <span class="legend-dot" style="background:#6565FF;"></span>이후
+      </span>
+    </div>
+    <div id="chart"></div>
+    <p class="source">출처: 예시 데이터</p>
+  </div>
+  <br>
+  <button id="export-btn">SVG 다운로드</button>
+</div>
+
+<div class="tooltip" id="tooltip">
+  <div class="tooltip-title" id="tt-title"></div>
+  <div class="tooltip-body"  id="tt-body"></div>
+</div>
+
+<script>
+  const data = [
+    { label: 'A', before: 4.2,  after: 8.5  },
+    { label: 'B', before: 9.1,  after: 16.2 },
+    { label: 'C', before: 7.8,  after: 11.5 },
+    { label: 'D', before: 3.5,  after: 6.7  },
+    { label: 'E', before: 11.0, after: 14.3 },
+  ];
+
+  const COLOR_BEFORE = '#a4a4a4';
+  const COLOR_AFTER  = '#6565FF';
+  const COLOR_LINE   = '#c6c6c6';
+
+  /* ── 치수 ── */
+  const width  = 236;
+  const height = 220;
+  const margin = { top: 6, right: 16, bottom: 6, left: 32 };
+  const innerW = width  - margin.left - margin.right;
+  const innerH = height - margin.top  - margin.bottom;
+
+  const svg = d3.select('#chart')
+    .append('svg')
+      .attr('width',  width)
+      .attr('height', height)
+      .attr('xmlns', 'http://www.w3.org/2000/svg');
+
+  const g = svg.append('g')
+    .attr('transform', `translate(${margin.left},${margin.top})`);
+
+  /* ── 스케일 ── */
+  const yScale = d3.scaleBand()
+    .domain(data.map(d => d.label))
+    .range([0, innerH])
+    .padding(0.45);
+
+  const maxVal = d3.max(data, d => Math.max(d.before, d.after));
+  const xScale = d3.scaleLinear()
+    .domain([0, Math.ceil(maxVal / 5) * 5])
+    .range([0, innerW]);
+
+  const xTicks = [0, 5, 10, 15, 20].filter(t => t <= xScale.domain()[1]);
+
+  /* ── 수직 그리드 ── */
+  g.append('g').selectAll('line.grid')
+    .data(xTicks.slice(1))
+    .join('line')
+      .attr('x1', d => xScale(d)).attr('x2', d => xScale(d))
+      .attr('y1', 0).attr('y2', innerH)
+      .style('stroke', '#aaaaaa')
+      .style('stroke-dasharray', '2')
+      .style('stroke-opacity', 0.4);
+
+  /* zero line */
+  g.append('line')
+    .attr('x1', xScale(0)).attr('x2', xScale(0))
+    .attr('y1', 0).attr('y2', innerH)
+    .style('stroke', '#363636')
+    .style('stroke-opacity', 0.4);
+
+  /* ── X축 ── */
+  g.append('g')
+    .attr('transform', `translate(0,${innerH})`)
+    .call(
+      d3.axisBottom(xScale)
+        .tickValues(xTicks)
+        .tickSize(0)
+        .tickPadding(8)
+    )
+    .call(a => a.select('.domain').remove())
+    .selectAll('text')
+      .style('font-size', '13px')
+      .style('font-family', "Pretendard,'Noto Sans KR',sans-serif")
+      .style('fill', '#999999');
+
+  /* ── Y축 ── */
+  g.append('g')
+    .call(
+      d3.axisLeft(yScale)
+        .tickSize(0)
+        .tickPadding(8)
+    )
+    .call(a => a.select('.domain').remove())
+    .selectAll('text')
+      .style('font-size', '13px')
+      .style('font-family', "Pretendard,'Noto Sans KR',sans-serif")
+      .style('fill', '#333333');
+
+  /* ── 덤벨 ── */
+  const tooltip = document.getElementById('tooltip');
+  const ttTitle = document.getElementById('tt-title');
+  const ttBody  = document.getElementById('tt-body');
+
+  const cy = d => yScale(d.label) + yScale.bandwidth() / 2;
+
+  /* 연결선 */
+  const lines = g.selectAll('.db-line')
+    .data(data)
+    .join('line')
+      .attr('class', 'db-line')
+      .attr('y1', cy).attr('y2', cy)
+      .attr('x1', d => xScale(d.before))
+      .attr('x2', d => xScale(d.before))
+      .style('stroke', COLOR_LINE)
+      .style('stroke-width', 2);
+
+  lines.transition().duration(800).ease(d3.easeCubicInOut)
+    .attr('x2', d => xScale(d.after));
+
+  /* 이전 점 */
+  const dotsBefore = g.selectAll('.dot-before')
+    .data(data)
+    .join('circle')
+      .attr('class', 'dot-before')
+      .attr('cy', cy)
+      .attr('cx', d => xScale(d.before))
+      .attr('r', 6)
+      .attr('fill', COLOR_BEFORE)
+      .attr('stroke', '#fff')
+      .attr('stroke-width', 1.5)
+      .style('cursor', 'pointer')
+      .on('mousemove', function(event, d) {
+        d3.select(this).attr('r', 8);
+        ttTitle.textContent = `항목 ${d.label}`;
+        ttBody.textContent  = `이전: ${d.before}`;
+        tooltip.style.opacity = '1';
+        tooltip.style.left = (event.clientX + 12) + 'px';
+        tooltip.style.top  = (event.clientY - 36) + 'px';
+      })
+      .on('mouseleave', function() {
+        d3.select(this).attr('r', 6);
+        tooltip.style.opacity = '0';
+      });
+
+  /* 이후 점 */
+  const dotsAfter = g.selectAll('.dot-after')
+    .data(data)
+    .join('circle')
+      .attr('class', 'dot-after')
+      .attr('cy', cy)
+      .attr('cx', d => xScale(d.before))
+      .attr('r', 6)
+      .attr('fill', COLOR_AFTER)
+      .attr('stroke', '#fff')
+      .attr('stroke-width', 1.5)
+      .style('cursor', 'pointer')
+      .on('mousemove', function(event, d) {
+        d3.select(this).attr('r', 8);
+        ttTitle.textContent = `항목 ${d.label}`;
+        ttBody.textContent  = `이후: ${d.after}`;
+        tooltip.style.opacity = '1';
+        tooltip.style.left = (event.clientX + 12) + 'px';
+        tooltip.style.top  = (event.clientY - 36) + 'px';
+      })
+      .on('mouseleave', function() {
+        d3.select(this).attr('r', 6);
+        tooltip.style.opacity = '0';
+      });
+
+  dotsAfter.transition().duration(800).ease(d3.easeCubicInOut)
+    .attr('cx', d => xScale(d.after));
+
+  /* ── SVG Export ── */
+  function exportSVG(svgEl, filename = 'dumbbell_chart.svg') {
+    const style = document.createElement('style');
+    style.textContent = `
+      @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+      text { font-family: 'Pretendard', 'Noto Sans KR', sans-serif; }
+    `;
+    svgEl.insertBefore(style, svgEl.firstChild);
+    const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    bg.setAttribute('width', '100%'); bg.setAttribute('height', '100%'); bg.setAttribute('fill', '#FFFFFF');
+    svgEl.insertBefore(bg, svgEl.firstChild);
+    const blob = new Blob([new XMLSerializer().serializeToString(svgEl)], { type: 'image/svg+xml' });
+    const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: filename });
+    a.click();
+    URL.revokeObjectURL(a.href);
+    svgEl.removeChild(style); svgEl.removeChild(bg);
+  }
+
+  document.getElementById('export-btn').addEventListener('click', () => {
+    exportSVG(document.querySelector('svg'), 'dumbbell_chart.svg');
+  });
+</script>
+</body>
+</html>

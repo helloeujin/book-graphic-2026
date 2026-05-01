@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>막대 차트</title>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Pretendard', 'Noto Sans KR', sans-serif;
+      background: #fff;
+      padding: 40px 20px;
+    }
+    .container { max-width: 760px; margin: 0 auto; }
+    h1   { font-size: 17px; line-height: 22px; font-weight: 700; color: #363636; padding-bottom: 5px; }
+    .dek { font-size: 15px; line-height: 19px; font-weight: 400; color: #777777; padding-bottom: 10px; }
+    .source { font-size: 13px; line-height: 17px; font-weight: 400; color: #777777; margin-top: 8px; }
+    #export-btn {
+      margin-top: 12px; padding: 8px 16px; font-size: 13px;
+      background: #000; color: #fff; border: none; border-radius: 4px; cursor: pointer;
+      font-family: 'Pretendard', sans-serif;
+    }
+    #export-btn:hover { background: #333; }
+    .tooltip {
+      position: absolute;
+      background: rgba(255,255,255,0.95);
+      border: 1px solid #c6c6c6;
+      border-radius: 4px;
+      padding: 10px 12px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    .tooltip-title { font-size: 14px; font-weight: 600; color: #454545; }
+    .tooltip-body  { font-size: 13px; font-weight: 400; color: #636363; margin-top: 2px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div style="display:inline-block; border:1px solid #aaa; padding:16px;">
+      <h1>항목별 수치 비교</h1>
+      <p class="dek">A, B, C, D 네 항목의 계열별 값을 비교한 그룹 막대 차트</p>
+      <div id="legend" style="display:flex; gap:12px; margin-bottom:6px;"></div>
+      <div id="chart" style="position:relative;"></div>
+      <p class="source">출처: 예시 데이터</p>
+    </div>
+    <button id="export-btn">SVG 다운로드</button>
+  </div>
+
+  <div class="tooltip" id="tooltip">
+    <div class="tooltip-title" id="tt-title"></div>
+    <div class="tooltip-body"  id="tt-body"></div>
+  </div>
+
+  <script>
+    /* ── 데이터 ── */
+    const series = [
+      { name: '계열 1', color: '#a4a4a4', hover: '#838383', values: { A: 8.5, B: 16.2, C: 11.5, D: 6.7 } },
+      { name: '계열 2', color: '#636363', hover: '#454545', values: { A: 5.2, B: 12.8, C: 9.3,  D: 4.1 } }
+    ];
+    const groups = ['A', 'B', 'C', 'D'];
+
+    /* ── 레전드 ── */
+    const legendEl = document.getElementById('legend');
+    series.forEach(s => {
+      legendEl.innerHTML += `
+        <span style="display:flex;align-items:center;gap:5px;font-size:14px;color:#363636;">
+          <span style="width:12px;height:12px;border-radius:50%;background:${s.color};display:inline-block;"></span>
+          ${s.name}
+        </span>`;
+    });
+
+    /* ── 치수 ── */
+    const width  = 236;
+    const height = 200;
+    const margin = { top: 6, right: 10, bottom: 30, left: 40 };
+    const innerW = width  - margin.left - margin.right;
+    const innerH = height - margin.top  - margin.bottom;
+
+    const svg = d3.select('#chart')
+      .append('svg')
+        .attr('width',  width)
+        .attr('height', height)
+        .attr('xmlns', 'http://www.w3.org/2000/svg');
+
+    const g = svg.append('g')
+      .attr('transform', `translate(${margin.left},${margin.top})`);
+
+    /* ── 스케일 ── */
+    const x0 = d3.scaleBand()
+      .domain(groups)
+      .range([0, innerW])
+      .paddingInner(0.25)
+      .paddingOuter(0.15);
+
+    const x1 = d3.scaleBand()
+      .domain(series.map(s => s.name))
+      .range([0, x0.bandwidth()])
+      .padding(0.08);
+
+    const yScale = d3.scaleLinear()
+      .domain([0, 20])
+      .range([innerH, 0]);
+
+    /* ── 그리드 ── */
+    g.append('g').attr('class', 'grid')
+      .selectAll('line')
+      .data([5, 10, 15])
+      .join('line')
+        .attr('x1', 0).attr('x2', innerW)
+        .attr('y1', d => yScale(d))
+        .attr('y2', d => yScale(d))
+        .style('stroke', '#aaaaaa')
+        .style('stroke-dasharray', '2')
+        .style('stroke-opacity', 0.4);
+
+    /* zero line */
+    g.append('line')
+      .attr('x1', 0).attr('x2', innerW)
+      .attr('y1', yScale(0)).attr('y2', yScale(0))
+      .style('stroke', '#363636')
+      .style('stroke-opacity', 0.4);
+
+    /* ── Y축 ── */
+    g.append('g')
+      .call(
+        d3.axisLeft(yScale)
+          .tickValues([0, 5, 10, 15])
+          .tickSize(0)
+          .tickPadding(8)
+      )
+      .call(ag => ag.select('.domain').remove())
+      .selectAll('text')
+        .style('font-size', '13px')
+        .style('font-family', "Pretendard,'Noto Sans KR',sans-serif")
+        .style('fill', '#999999');
+
+    /* ── X축 ── */
+    g.append('g')
+      .attr('transform', `translate(0,${innerH})`)
+      .call(d3.axisBottom(x0).tickSize(0).tickPadding(8))
+      .call(ag => ag.select('.domain').remove())
+      .selectAll('text')
+        .style('font-size', '13px')
+        .style('font-family', "Pretendard,'Noto Sans KR',sans-serif")
+        .style('fill', '#333333');
+
+    /* ── 툴팁 ── */
+    const tooltip = document.getElementById('tooltip');
+    const ttTitle = document.getElementById('tt-title');
+    const ttBody  = document.getElementById('tt-body');
+
+    /* ── 그룹 막대 ── */
+    groups.forEach(grp => {
+      const gx = g.append('g')
+        .attr('transform', `translate(${x0(grp)},0)`);
+
+      series.forEach(s => {
+        const val = s.values[grp];
+        gx.append('rect')
+          .attr('x',      x1(s.name))
+          .attr('width',  x1.bandwidth())
+          .attr('y',      innerH)
+          .attr('height', 0)
+          .attr('fill',   s.color)
+          .on('mousemove', function(event) {
+            d3.select(this).attr('fill', s.hover);
+            ttTitle.textContent = `항목 ${grp} · ${s.name}`;
+            ttBody.textContent  = `값: ${val}`;
+            tooltip.style.opacity = '1';
+            tooltip.style.left = (event.pageX + 12) + 'px';
+            tooltip.style.top  = (event.pageY - 36) + 'px';
+          })
+          .on('mouseleave', function() {
+            d3.select(this).attr('fill', s.color);
+            tooltip.style.opacity = '0';
+          })
+          .transition()
+            .duration(800)
+            .ease(d3.easeCubicInOut)
+            .attr('y',      yScale(val))
+            .attr('height', innerH - yScale(val));
+      });
+    });
+
+    /* ── SVG Export ── */
+    function exportSVG(svgElement, filename = 'bar_chart.svg') {
+      const style = document.createElement('style');
+      style.textContent = `
+        @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+        text { font-family: 'Pretendard', 'Noto Sans KR', sans-serif; }
+      `;
+      svgElement.insertBefore(style, svgElement.firstChild);
+
+      const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      bg.setAttribute('width',  '100%');
+      bg.setAttribute('height', '100%');
+      bg.setAttribute('fill',   '#FFFFFF');
+      svgElement.insertBefore(bg, svgElement.firstChild);
+
+      const serializer = new XMLSerializer();
+      const svgStr = serializer.serializeToString(svgElement);
+      const blob = new Blob([svgStr], { type: 'image/svg+xml' });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      svgElement.removeChild(style);
+      svgElement.removeChild(bg);
+    }
+
+    document.getElementById('export-btn').addEventListener('click', () => {
+      exportSVG(document.querySelector('svg'), 'bar_chart_ABCD.svg');
+    });
+  </script>
+</body>
+</html>
