@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>덤벨 정렬 비교</title>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Pretendard','Noto Sans KR',sans-serif; background:#fff; padding:40px 20px; }
+
+    .panels { display:flex; gap:24px; align-items:flex-start; }
+    .panel  { border:1px solid #aaa; padding:16px; display:inline-block; }
+
+    .panel-title { font-size:17px; line-height:22px; font-weight:700; color:#363636; padding-bottom:5px; }
+
+    .legend { display:flex; gap:12px; margin-bottom:4px; }
+    .legend-item { display:flex; align-items:center; gap:5px; font-size:13px; color:#363636; }
+    .legend-dot  { width:10px; height:10px; border-radius:50%; display:inline-block; }
+
+    .source { font-size:13px; line-height:17px; color:#777; margin-top:8px; }
+  </style>
+</head>
+<body>
+<div class="panels">
+
+  <!-- 왼쪽: 가나다순 -->
+  <div class="panel">
+    <p class="panel-title">가나다순 정렬</p>
+    <div class="legend">
+      <span class="legend-item"><span class="legend-dot" style="background:#a4a4a4;"></span>그룹 1</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#6565FF;"></span>그룹 2</span>
+    </div>
+    <div id="chart-alpha"></div>
+    <p class="source">예시 데이터</p>
+  </div>
+
+  <!-- 오른쪽: 값 내림차순 -->
+  <div class="panel">
+    <p class="panel-title">값 내림차순 정렬</p>
+    <div class="legend">
+      <span class="legend-item"><span class="legend-dot" style="background:#a4a4a4;"></span>그룹 1</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#6565FF;"></span>그룹 2</span>
+    </div>
+    <div id="chart-sorted"></div>
+    <p class="source">예시 데이터</p>
+  </div>
+
+</div>
+
+<script>
+const raw = [
+  { label:'가', group1:3.2,  group2:7.8 },
+  { label:'나', group1:6.5,  group2:9.1 },
+  { label:'다', group1:1.8,  group2:4.2 },
+  { label:'라', group1:5.1,  group2:11.4 },
+  { label:'마', group1:4.7,  group2:6.3 },
+  { label:'바', group1:2.4,  group2:8.7 },
+];
+
+const alphaData  = [...raw];
+const sortedData = [...raw].sort((a,b) => b.group2 - a.group2);
+
+const COLOR_AFTER  = '#6565FF';
+const COLOR_BEFORE = '#a4a4a4';
+const COLOR_LINE   = '#c6c6c6';
+
+function drawDumbbell(containerId, data) {
+  const W = 200, H = 180;
+  const M = { top:6, right:12, bottom:24, left:28 };
+  const iW = W - M.left - M.right;
+  const iH = H - M.top  - M.bottom;
+
+  const svg = d3.select(containerId).append('svg')
+    .attr('width', W).attr('height', H).attr('xmlns','http://www.w3.org/2000/svg');
+  const g = svg.append('g').attr('transform', `translate(${M.left},${M.top})`);
+
+  const y  = d3.scaleBand().domain(data.map(d=>d.label)).range([0, iH]).padding(0.45);
+  const x  = d3.scaleLinear().domain([0, 14]).range([0, iW]);
+  const xTicks = [0, 4, 8, 12];
+
+  /* 그리드 */
+  g.append('g').selectAll('line').data(xTicks).join('line')
+    .attr('x1',d=>x(d)).attr('x2',d=>x(d)).attr('y1',0).attr('y2',iH)
+    .style('stroke','#aaaaaa').style('stroke-dasharray','2').style('stroke-opacity',0.4);
+
+  /* zero line */
+  g.append('line').attr('x1',x(0)).attr('x2',x(0)).attr('y1',0).attr('y2',iH)
+    .style('stroke','#363636').style('stroke-opacity',0.4);
+
+  /* X축 */
+  g.append('g').attr('transform',`translate(0,${iH})`)
+    .call(d3.axisBottom(x).tickValues(xTicks).tickSize(0).tickPadding(6))
+    .call(a=>a.select('.domain').remove())
+    .selectAll('text').style('font-size','12px').style('fill','#999')
+    .style('font-family',"Pretendard,'Noto Sans KR',sans-serif");
+
+  /* Y축 */
+  g.append('g').call(d3.axisLeft(y).tickSize(0).tickPadding(6))
+    .call(a=>a.select('.domain').remove())
+    .selectAll('text').style('font-size','12px').style('fill','#333')
+    .style('font-family',"Pretendard,'Noto Sans KR',sans-serif");
+
+  const cy = d => y(d.label) + y.bandwidth() / 2;
+
+  /* 연결선 */
+  g.selectAll('.db-line').data(data).join('line')
+    .attr('class','db-line')
+    .attr('y1',cy).attr('y2',cy)
+    .attr('x1',d=>x(d.group1)).attr('x2',d=>x(d.group1))
+    .style('stroke',COLOR_LINE).style('stroke-width',2)
+    .transition().duration(800).ease(d3.easeCubicInOut)
+    .attr('x2',d=>x(d.group2));
+
+  /* 그룹 1 점 */
+  g.selectAll('.dot-b').data(data).join('circle')
+    .attr('class','dot-b').attr('cy',cy).attr('cx',d=>x(d.group1))
+    .attr('r',5).attr('fill',COLOR_BEFORE)
+    .attr('stroke','#fff').attr('stroke-width',1.5);
+
+  /* 그룹 2 점 */
+  g.selectAll('.dot-a').data(data).join('circle')
+    .attr('class','dot-a').attr('cy',cy).attr('cx',d=>x(d.group1))
+    .attr('r',5).attr('fill',COLOR_AFTER)
+    .attr('stroke','#fff').attr('stroke-width',1.5)
+    .transition().duration(800).ease(d3.easeCubicInOut)
+    .attr('cx',d=>x(d.group2));
+}
+
+drawDumbbell('#chart-alpha',  alphaData);
+drawDumbbell('#chart-sorted', sortedData);
+</script>
+</body>
+</html>

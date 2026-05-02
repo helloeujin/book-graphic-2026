@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>그룹 막대 vs 덤벨 — 남녀 기대수명</title>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Pretendard','Noto Sans KR',sans-serif; background:#fff; padding:40px 20px; }
+    .page { max-width:1400px; margin:0 auto; }
+
+    .panels { display:flex; gap:40px; align-items:flex-start; }
+    .panel  { width:640px; flex-shrink:0; border:1px solid #aaa; padding:20px; }
+
+    .panel-title { font-size:17px; line-height:22px; font-weight:700; color:#363636; padding-bottom:5px; }
+
+    .legend { display:flex; gap:16px; margin-bottom:3px; }
+    .legend-item { display:flex; align-items:center; gap:6px; font-size:13px; color:#363636; }
+    .legend-dot  { width:10px; height:10px; border-radius:50%; display:inline-block; }
+
+    .source { font-size:13px; line-height:17px; color:#777; margin-top:8px; }
+
+    .export-btn {
+      margin-top:12px; padding:8px 16px; font-size:13px;
+      background:#000; color:#fff; border:none; border-radius:4px;
+      cursor:pointer; font-family:'Pretendard',sans-serif;
+      display:block;
+    }
+    .export-btn:hover { background:#333; }
+
+    .tooltip {
+      position:fixed; background:rgba(255,255,255,0.95); border:1px solid #c6c6c6;
+      border-radius:4px; padding:10px 12px; pointer-events:none; opacity:0;
+      transition:opacity 0.15s; box-shadow:0 2px 8px rgba(0,0,0,0.08); z-index:999;
+    }
+    .tooltip-title { font-size:14px; font-weight:600; color:#454545; }
+    .tooltip-body  { font-size:13px; color:#636363; margin-top:3px; }
+  </style>
+</head>
+<body>
+<div class="page">
+  <div class="panels">
+
+    <!-- 왼쪽: 가로 그룹 막대 그래프 -->
+    <div class="panel">
+      <p class="panel-title">그룹 막대 그래프</p>
+      <div class="legend">
+        <span class="legend-item"><span class="legend-dot" style="background:#6565FF;"></span>여성</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#a4a4a4;"></span>남성</span>
+      </div>
+      <div id="chart-bar"></div>
+      <p class="source">출처: <a href="https://data-explorer.oecd.org/vis?tm=DF_LE&df[id]=DSD_HEALTH_STAT%40DF_LE&df[ag]=OECD.ELS.HD" target="_blank" style="color:#777;text-decoration:underline;">OECD Health Statistics</a> (2023년)</p>
+      <button class="export-btn" id="export-bar">SVG 다운로드</button>
+    </div>
+
+    <!-- 오른쪽: 덤벨 차트 -->
+    <div class="panel">
+      <p class="panel-title">덤벨 차트</p>
+      <div class="legend">
+        <span class="legend-item"><span class="legend-dot" style="background:#6565FF;"></span>여성</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#a4a4a4;"></span>남성</span>
+      </div>
+      <div id="chart-db"></div>
+      <p class="source">출처: <a href="https://data-explorer.oecd.org/vis?tm=DF_LE&df[id]=DSD_HEALTH_STAT%40DF_LE&df[ag]=OECD.ELS.HD" target="_blank" style="color:#777;text-decoration:underline;">OECD Health Statistics</a> (2023년)</p>
+      <button class="export-btn" id="export-db">SVG 다운로드</button>
+    </div>
+
+  </div>
+</div>
+
+<div class="tooltip" id="tooltip">
+  <div class="tooltip-title" id="tt-title"></div>
+  <div class="tooltip-body"  id="tt-body"></div>
+</div>
+
+<script>
+/* ── 데이터 ── */
+/* ── 데이터 — OECD Health Statistics, DF_LE (2023년 기준) ── */
+const rawData = [
+  { country:'라트비아',    female:80.6, male:70.5 },
+  { country:'리투아니아',  female:81.9, male:72.9 },
+  { country:'에스토니아',  female:83.3, male:74.5 },
+  { country:'폴란드',      female:82.1, male:74.6 },
+  { country:'헝가리',      female:79.9, male:73.4 },
+  { country:'일본',        female:87.1, male:81.1 },
+  { country:'한국',        female:86.4, male:80.6 },
+  { country:'프랑스',      female:85.7, male:80.1 },
+  { country:'스페인',      female:86.7, male:81.3 },
+  { country:'핀란드',      female:84.3, male:79.0 },
+  { country:'독일',        female:83.5, male:78.7 },
+  { country:'캐나다',      female:83.9, male:79.5 },
+  { country:'이탈리아',    female:85.4, male:81.4 },
+  { country:'호주',        female:85.1, male:81.1 },
+  { country:'노르웨이',    female:84.6, male:81.5 },
+];
+
+/* 격차 큰 순 정렬 */
+const sortedData = [...rawData].sort((a,b) => (b.female - b.male) - (a.female - a.male));
+
+const COLOR_F    = '#6565FF';
+const COLOR_M    = '#a4a4a4';
+const COLOR_LINE = '#c6c6c6';
+
+const tooltip = document.getElementById('tooltip');
+const ttTitle  = document.getElementById('tt-title');
+const ttBody   = document.getElementById('tt-body');
+
+function showTip(e, title, body) {
+  ttTitle.textContent = title;
+  ttBody.textContent  = body;
+  tooltip.style.opacity = '1';
+  tooltip.style.left = (e.clientX + 14) + 'px';
+  tooltip.style.top  = (e.clientY - 36) + 'px';
+}
+function hideTip() { tooltip.style.opacity = '0'; }
+
+/* ═══════════════════════════════════════
+   왼쪽: 가로 그룹 막대 그래프
+═══════════════════════════════════════ */
+(function() {
+  const W = 600, H = 420;
+  const M = { top:6, right:40, bottom:30, left:68 };
+  const iW = W - M.left - M.right;
+  const iH = H - M.top  - M.bottom;
+
+  const svg = d3.select('#chart-bar').append('svg')
+    .attr('width',W).attr('height',H).attr('xmlns','http://www.w3.org/2000/svg');
+  const g = svg.append('g').attr('transform',`translate(${M.left},${M.top})`);
+
+  const y0 = d3.scaleBand().domain(sortedData.map(d=>d.country)).range([0,iH]).paddingInner(0.2).paddingOuter(0.1);
+  const y1 = d3.scaleBand().domain(['female','male']).range([0,y0.bandwidth()]).padding(0.08);
+  const x  = d3.scaleLinear().domain([0, 90]).range([0, iW]);
+  const xTicks = [0, 20, 40, 60, 80];
+
+  /* 수직 그리드 */
+  g.append('g').selectAll('line').data(xTicks).join('line')
+    .attr('x1',d=>x(d)).attr('x2',d=>x(d)).attr('y1',0).attr('y2',iH)
+    .style('stroke','#aaaaaa').style('stroke-dasharray','2').style('stroke-opacity',0.4);
+
+  /* X축 */
+  g.append('g').attr('transform',`translate(0,${iH})`)
+    .call(d3.axisBottom(x).tickValues(xTicks).tickFormat(d=>`${d}세`).tickSize(0).tickPadding(8))
+    .call(a=>a.select('.domain').remove())
+    .selectAll('text').style('font-size','12px').style('fill','#999')
+    .style('font-family',"Pretendard,'Noto Sans KR',sans-serif");
+
+  /* Y축 */
+  g.append('g').call(d3.axisLeft(y0).tickSize(0).tickPadding(8))
+    .call(a=>a.select('.domain').remove())
+    .selectAll('text').style('font-size','12px').style('fill','#333')
+    .style('font-family',"Pretendard,'Noto Sans KR',sans-serif");
+
+  /* 가로 막대 */
+  sortedData.forEach(d => {
+    const gy = g.append('g').attr('transform',`translate(0,${y0(d.country)})`);
+    [['female', COLOR_F], ['male', COLOR_M]].forEach(([key, color]) => {
+      gy.append('rect')
+        .attr('y', y1(key)).attr('height', y1.bandwidth())
+        .attr('x', x(0)).attr('width', 0)
+        .attr('fill', color).attr('opacity', 0.85)
+        .on('mousemove', function(e) {
+          d3.select(this).attr('opacity',1);
+          showTip(e, `${d.country} · ${key==='female'?'여성':'남성'}`, `기대수명: ${d[key]}세`);
+        })
+        .on('mouseleave', function() { d3.select(this).attr('opacity',0.85); hideTip(); })
+        .transition().duration(800).ease(d3.easeCubicInOut)
+        .attr('width', x(d[key]));
+    });
+  });
+})();
+
+/* ═══════════════════════════════════════
+   오른쪽: 덤벨 차트
+═══════════════════════════════════════ */
+(function() {
+  const W = 600, H = 420;
+  const M = { top:6, right:10, bottom:30, left:68 };
+  const iW = W - M.left - M.right;
+  const iH = H - M.top  - M.bottom;
+
+  const svg = d3.select('#chart-db').append('svg')
+    .attr('width',W).attr('height',H).attr('xmlns','http://www.w3.org/2000/svg');
+  const g = svg.append('g').attr('transform',`translate(${M.left},${M.top})`);
+
+  const y  = d3.scaleBand().domain(sortedData.map(d=>d.country)).range([0,iH]).padding(0.45);
+  const x  = d3.scaleLinear().domain([65, 90]).range([0, iW]);
+  const xTicks = [65, 70, 75, 80, 85, 90];
+
+  /* 수직 그리드 */
+  g.append('g').selectAll('line').data(xTicks).join('line')
+    .attr('x1',d=>x(d)).attr('x2',d=>x(d)).attr('y1',0).attr('y2',iH)
+    .style('stroke','#aaaaaa').style('stroke-dasharray','2').style('stroke-opacity',0.4);
+
+  /* X축 */
+  g.append('g').attr('transform',`translate(0,${iH})`)
+    .call(d3.axisBottom(x).tickValues(xTicks).tickFormat(d=>`${d}세`).tickSize(0).tickPadding(8))
+    .call(a=>a.select('.domain').remove())
+    .selectAll('text').style('font-size','12px').style('fill','#999')
+    .style('font-family',"Pretendard,'Noto Sans KR',sans-serif");
+
+  /* Y축 */
+  g.append('g').call(d3.axisLeft(y).tickSize(0).tickPadding(8))
+    .call(a=>a.select('.domain').remove())
+    .selectAll('text').style('font-size','12px').style('fill','#333')
+    .style('font-family',"Pretendard,'Noto Sans KR',sans-serif");
+
+  const cy = d => y(d.country) + y.bandwidth() / 2;
+
+  /* 연결선 */
+  g.selectAll('.db-line').data(sortedData).join('line')
+    .attr('class','db-line')
+    .attr('y1',cy).attr('y2',cy)
+    .attr('x1',d=>x(d.male)).attr('x2',d=>x(d.male))
+    .style('stroke',COLOR_LINE).style('stroke-width',2)
+    .transition().duration(800).ease(d3.easeCubicInOut)
+    .attr('x2',d=>x(d.female));
+
+  /* 남성 점 */
+  g.selectAll('.dot-m').data(sortedData).join('circle')
+    .attr('class','dot-m').attr('cy',cy).attr('cx',d=>x(d.male))
+    .attr('r',5.5).attr('fill',COLOR_M).attr('stroke','#fff').attr('stroke-width',1.5)
+    .style('cursor','pointer')
+    .on('mousemove', function(e,d) {
+      d3.select(this).attr('r',7);
+      showTip(e, `${d.country} · 남성`, `기대수명: ${d.male}세 (격차 ${(d.female-d.male).toFixed(1)}년)`);
+    })
+    .on('mouseleave', function() { d3.select(this).attr('r',5.5); hideTip(); });
+
+  /* 여성 점 */
+  g.selectAll('.dot-f').data(sortedData).join('circle')
+    .attr('class','dot-f').attr('cy',cy).attr('cx',d=>x(d.male))
+    .attr('r',5.5).attr('fill',COLOR_F).attr('stroke','#fff').attr('stroke-width',1.5)
+    .style('cursor','pointer')
+    .on('mousemove', function(e,d) {
+      d3.select(this).attr('r',7);
+      showTip(e, `${d.country} · 여성`, `기대수명: ${d.female}세 (격차 ${(d.female-d.male).toFixed(1)}년)`);
+    })
+    .on('mouseleave', function() { d3.select(this).attr('r',5.5); hideTip(); })
+    .transition().duration(800).ease(d3.easeCubicInOut)
+    .attr('cx',d=>x(d.female));
+})();
+
+/* ── SVG Export ── */
+function exportSVG(svgEl, filename) {
+  const style = document.createElement('style');
+  style.textContent = `@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');text{font-family:'Pretendard','Noto Sans KR',sans-serif;}`;
+  svgEl.insertBefore(style, svgEl.firstChild);
+  const bg = document.createElementNS('http://www.w3.org/2000/svg','rect');
+  bg.setAttribute('width','100%'); bg.setAttribute('height','100%'); bg.setAttribute('fill','#fff');
+  svgEl.insertBefore(bg, svgEl.firstChild);
+  const blob = new Blob([new XMLSerializer().serializeToString(svgEl)], {type:'image/svg+xml'});
+  Object.assign(document.createElement('a'), {href:URL.createObjectURL(blob), download:filename}).click();
+  svgEl.removeChild(style); svgEl.removeChild(bg);
+}
+
+document.getElementById('export-bar').addEventListener('click', () =>
+  exportSVG(document.querySelector('#chart-bar svg'), 'grouped_bar_lifeexp.svg'));
+document.getElementById('export-db').addEventListener('click', () =>
+  exportSVG(document.querySelector('#chart-db svg'), 'dumbbell_lifeexp.svg'));
+</script>
+</body>
+</html>
