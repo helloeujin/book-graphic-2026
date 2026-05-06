@@ -2,168 +2,167 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <title>면적 차트</title>
+  <title>에어리어 차트</title>
   <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
   <style>
-    * { margin:0; padding:0; box-sizing:border-box; }
-    body { font-family:'Pretendard','Noto Sans KR',sans-serif; background:#fff; padding:40px 20px; }
-    .container { display:inline-block; }
-    h1   { font-size:17px; line-height:22px; font-weight:700; color:#363636; padding-bottom:5px; }
-    .legend { display:flex; gap:12px; margin-bottom:4px; }
-    .legend-item { display:flex; align-items:center; gap:6px; font-size:13px; color:#363636; }
-    .legend-swatch { width:16px; height:10px; display:inline-block; border-radius:2px; }
-    .source { font-size:13px; line-height:17px; color:#777; margin-top:8px; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Pretendard', 'Noto Sans KR', sans-serif; background: #fff; padding: 40px 20px; }
+    .container { display: inline-block; }
+    h1   { font-size: 17px; line-height: 22px; font-weight: 700; color: #363636; padding-bottom: 5px; }
+    .legend { display: flex; gap: 12px; margin-bottom: 10px; }
+    .legend-item { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #363636; }
+    .legend-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+    .source { font-size: 13px; line-height: 17px; color: #777; margin-top: 8px; }
     .tooltip {
-      position:fixed; background:rgba(255,255,255,0.95); border:1px solid #c6c6c6;
-      border-radius:4px; padding:10px 12px; pointer-events:none; opacity:0;
-      transition:opacity 0.15s; box-shadow:0 2px 8px rgba(0,0,0,0.08);
+      position: fixed; background: rgba(255,255,255,0.95); border: 1px solid #c6c6c6;
+      border-radius: 4px; padding: 10px 12px; pointer-events: none; opacity: 0;
+      transition: opacity 0.15s; box-shadow: 0 2px 8px rgba(0,0,0,0.08);
     }
-    .tooltip-title { font-size:14px; font-weight:600; color:#454545; }
-    .tooltip-body  { font-size:13px; color:#636363; margin-top:3px; }
+    .tooltip-title { font-size: 14px; font-weight: 600; color: #454545; }
+    .tooltip-body  { font-size: 13px; color: #636363; margin-top: 3px; }
     #export-btn {
-      margin-top:12px; padding:8px 16px; font-size:13px;
-      background:#000; color:#fff; border:none; border-radius:4px;
-      cursor:pointer; font-family:'Pretendard',sans-serif;
+      margin-top: 12px; padding: 8px 16px; font-size: 13px;
+      background: #000; color: #fff; border: none; border-radius: 4px;
+      cursor: pointer; font-family: 'Pretendard', sans-serif;
     }
-    #export-btn:hover { background:#333; }
+    #export-btn:hover { background: #333; }
   </style>
 </head>
 <body>
 <div class="container">
-  <div style="border:1px solid #aaa; padding:16px; display:inline-block;">
+  <div style="border: 1px solid #aaa; padding: 16px; display: inline-block;">
     <h1>연도별 추이</h1>
-    <div class="legend">
-      <span class="legend-item">
-        <span class="legend-swatch" style="background:rgba(101,101,255,0.22);border:1.5px solid #6565FF;"></span>계열 A
-      </span>
-      <span class="legend-item">
-        <span class="legend-swatch" style="background:rgba(164,164,164,0.22);border:1.5px solid #a4a4a4;"></span>계열 B
-      </span>
-    </div>
     <div id="chart"></div>
     <p class="source">출처: 예시 데이터</p>
   </div><br>
   <button id="export-btn">SVG 다운로드</button>
 </div>
+
 <div class="tooltip" id="tooltip">
   <div class="tooltip-title" id="tt-title"></div>
   <div class="tooltip-body"  id="tt-body"></div>
 </div>
+
 <script>
-  const years  = [2000, 2005, 2010, 2015, 2020];
+  const years  = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16].map(x => 2000 + (x-1)*20/15);
   const series = [
-    { name:'계열 A', color:'#6565FF', fill:'rgba(101,101,255,0.18)', values:[4.2, 6.8,  9.1, 11.5, 14.3] },
-    { name:'계열 B', color:'#a4a4a4', fill:'rgba(164,164,164,0.18)', values:[7.5, 8.2,  7.9,  9.4, 10.1] }
+    { name: '그룹 A+B', color: '#6565FF', fill: 'rgba(101,101,255,0.6)', values: [17,17,19,20,17,15,19,27,23,18,16,21,27,29,31,33] }
   ];
 
+  /* ── 치수 ── */
   const W = 236, H = 200;
-  const M = { top:6, right:40, bottom:30, left:36 };
+  const M = { top: 6, right: 24, bottom: 30, left: 36 };
   const iW = W - M.left - M.right;
   const iH = H - M.top  - M.bottom;
 
   const svg = d3.select('#chart').append('svg')
-    .attr('width',W).attr('height',H).attr('xmlns','http://www.w3.org/2000/svg');
-  const g = svg.append('g').attr('transform',`translate(${M.left},${M.top})`);
+    .attr('width', W).attr('height', H).attr('xmlns', 'http://www.w3.org/2000/svg');
+  const g = svg.append('g').attr('transform', `translate(${M.left},${M.top})`);
 
-  /* 스케일 */
-  const xScale = d3.scaleLinear().domain([2000,2020]).range([0,iW]);
-  const yMax   = Math.ceil(d3.max(series.flatMap(s=>s.values)) / 5) * 5;
-  const yScale = d3.scaleLinear().domain([0,yMax]).range([iH,0]);
-  const yTicks = d3.range(0, yMax+1, 5);
+  /* ── 스케일 ── */
+  const xScale = d3.scaleLinear().domain([2000, 2020]).range([0, iW]);
+  const yScale = d3.scaleLinear().domain([0, 40]).range([iH, 0]);
+  const yTicks = [0, 10, 20, 30, 40];
+  const xTicks = [2000, 2005, 2010, 2015, 2020];
 
-  /* 그리드 */
+  /* ── 그리드 ── */
   g.append('g').selectAll('line').data(yTicks.slice(1)).join('line')
-    .attr('x1',0).attr('x2',iW).attr('y1',d=>yScale(d)).attr('y2',d=>yScale(d))
-    .style('stroke','#aaaaaa').style('stroke-dasharray','2').style('stroke-opacity',0.4);
+    .attr('x1', 0).attr('x2', iW)
+    .attr('y1', d => yScale(d)).attr('y2', d => yScale(d))
+    .style('stroke', '#aaaaaa').style('stroke-dasharray', '2').style('stroke-opacity', 0.4);
 
   /* zero line */
-  g.append('line').attr('x1',0).attr('x2',iW).attr('y1',yScale(0)).attr('y2',yScale(0))
-    .style('stroke','#363636').style('stroke-opacity',0.4);
+  g.append('line').attr('x1', 0).attr('x2', iW).attr('y1', yScale(0)).attr('y2', yScale(0))
+    .style('stroke', '#363636').style('stroke-opacity', 0.4);
 
-  /* Y축 */
+  /* ── Y축 ── */
   g.append('g')
     .call(d3.axisLeft(yScale).tickValues(yTicks).tickSize(0).tickPadding(8))
-    .call(a=>a.select('.domain').remove())
-    .selectAll('text').style('font-size','13px').style('fill','#999999')
-    .style('font-family',"Pretendard,'Noto Sans KR',sans-serif");
+    .call(a => a.select('.domain').remove())
+    .selectAll('text')
+      .style('font-size', '13px').style('fill', '#999999')
+      .style('font-family', "Pretendard,'Noto Sans KR',sans-serif");
 
-  /* X축 */
-  g.append('g').attr('transform',`translate(0,${iH})`)
-    .call(d3.axisBottom(xScale).tickValues(years).tickFormat(d3.format('d')).tickSize(4).tickPadding(8))
-    .call(a=>a.select('.domain').remove())
-    .selectAll('text').style('font-size','13px').style('fill','#999999')
-    .style('font-family',"Pretendard,'Noto Sans KR',sans-serif");
+  /* ── X축 ── */
+  g.append('g').attr('transform', `translate(0,${iH})`)
+    .call(d3.axisBottom(xScale).tickValues(xTicks).tickFormat(d3.format('d')).tickSize(4).tickPadding(8))
+    .call(a => a.select('.domain').remove())
+    .call(a => a.selectAll('.tick line').style('stroke', '#aaaaaa'))
+    .selectAll('text')
+      .style('font-size', '13px').style('fill', '#999999')
+      .style('font-family', "Pretendard,'Noto Sans KR',sans-serif");
 
-  /* 제너레이터 */
-  const areaGen = d3.area().x((_,i)=>xScale(years[i])).y0(iH).y1(v=>yScale(v)).curve(d3.curveMonotoneX);
-  const lineGen = d3.line().x((_,i)=>xScale(years[i])).y(v=>yScale(v)).curve(d3.curveMonotoneX);
+  /* ── 제너레이터 ── */
+  const areaGen = d3.area()
+    .x((_, i) => xScale(years[i]))
+    .y0(iH).y1(v => yScale(v))
+    .curve(d3.curveMonotoneX);
 
-  /* 클립패스 애니메이션 */
+  const lineGen = d3.line()
+    .x((_, i) => xScale(years[i]))
+    .y(v => yScale(v))
+    .curve(d3.curveMonotoneX);
+
+  /* ── 클립패스 드로우 애니메이션 ── */
   const defs = svg.append('defs');
-  const clipRect = defs.append('clipPath').attr('id','clip-area')
-    .append('rect').attr('x',0).attr('y',0).attr('width',0).attr('height',iH + M.top + M.bottom);
+  const clipRect = defs.append('clipPath').attr('id', 'clip-area')
+    .append('rect').attr('x', 0).attr('y', 0).attr('width', 0).attr('height', iH + M.top + M.bottom);
   clipRect.transition().duration(800).ease(d3.easeCubicInOut).attr('width', iW + M.right);
 
   const tooltip = document.getElementById('tooltip');
   const ttTitle = document.getElementById('tt-title');
   const ttBody  = document.getElementById('tt-body');
 
-  /* B 먼저(아래), A 위에 */
+  /* ── 에어리어 + 라인 (B 먼저, A 위에) ── */
   [...series].reverse().forEach(s => {
-    const grp = g.append('g').attr('clip-path','url(#clip-area)');
-    grp.append('path').datum(s.values).attr('fill',s.fill).attr('d',areaGen);
+    const grp = g.append('g').attr('clip-path', 'url(#clip-area)');
     grp.append('path').datum(s.values)
-      .attr('fill','none').attr('stroke',s.color)
-      .attr('stroke-width',2).attr('stroke-linejoin','round').attr('d',lineGen);
-
-    /* 끝 레이블 */
-    g.append('text')
-      .attr('x',iW+5).attr('y',yScale(s.values.at(-1)))
-      .attr('dominant-baseline','central').attr('font-size','12px').attr('fill',s.color)
-      .attr('font-family',"Pretendard,'Noto Sans KR',sans-serif")
-      .attr('opacity',0).text(s.name)
-      .transition().delay(800).duration(200).attr('opacity',1);
+      .attr('fill', s.fill)
+      .attr('d', areaGen);
+    grp.append('path').datum(s.values)
+      .attr('fill', 'none')
+      .attr('stroke', s.color)
+      .attr('stroke-width', 2)
+      .attr('stroke-linejoin', 'round')
+      .attr('d', lineGen);
   });
 
-  /* 겹침 방지 */
-  setTimeout(() => {
-    const MIN_GAP = 14;
-    const els = svg.selectAll('text').filter(function(){
-      return +d3.select(this).attr('x') > iW + M.left;
-    }).nodes();
-    const ys = els.map(el=>+d3.select(el).attr('y')).sort((a,b)=>a-b);
-    for (let i=1; i<ys.length; i++) if (ys[i]-ys[i-1]<MIN_GAP) ys[i]=ys[i-1]+MIN_GAP;
-    els.forEach((el,i)=>d3.select(el).attr('y',ys[i]));
-  }, 850);
-
-  /* 투명 오버레이 tooltip */
+  /* ── 인터랙티브 오버레이 ── */
   series.forEach(s => {
-    g.append('rect').attr('width',iW).attr('height',iH).attr('fill','transparent').style('cursor','crosshair')
-      .on('mousemove', function(event) {
-        const mx = d3.pointer(event,this)[0];
-        const i  = Math.max(0,Math.min(years.length-1, Math.round((xScale.invert(mx)-2000)/5)));
-        ttTitle.textContent = `${s.name} · ${years[i]}년`;
-        ttBody.textContent  = `값: ${s.values[i]}`;
-        tooltip.style.opacity = '1';
-        tooltip.style.left = (event.clientX+12)+'px';
-        tooltip.style.top  = (event.clientY-36)+'px';
-      })
-      .on('mouseleave',()=>{ tooltip.style.opacity='0'; });
+    s.values.forEach((v, i) => {
+      g.append('circle')
+        .attr('cx', xScale(years[i])).attr('cy', yScale(v))
+        .attr('r', 4).attr('fill', s.color).attr('fill-opacity', 0)
+        .style('cursor', 'pointer')
+        .on('mouseover', function(event) {
+          d3.select(this).attr('fill-opacity', 1).attr('r', 5);
+          ttTitle.textContent = `${s.name} · ${years[i]}년`;
+          ttBody.textContent  = `값: ${v}`;
+          tooltip.style.opacity = '1';
+          tooltip.style.left = (event.clientX + 12) + 'px';
+          tooltip.style.top  = (event.clientY - 36) + 'px';
+        })
+        .on('mouseleave', function() {
+          d3.select(this).attr('fill-opacity', 0).attr('r', 4);
+          tooltip.style.opacity = '0';
+        });
+    });
   });
 
-  function exportSVG(svgEl, fn='area_chart.svg') {
-    const st=document.createElement('style');
-    st.textContent=`@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');text{font-family:'Pretendard','Noto Sans KR',sans-serif;}`;
-    svgEl.insertBefore(st,svgEl.firstChild);
-    const bg=document.createElementNS('http://www.w3.org/2000/svg','rect');
-    bg.setAttribute('width','100%');bg.setAttribute('height','100%');bg.setAttribute('fill','#fff');
-    svgEl.insertBefore(bg,svgEl.firstChild);
-    const blob=new Blob([new XMLSerializer().serializeToString(svgEl)],{type:'image/svg+xml'});
-    Object.assign(document.createElement('a'),{href:URL.createObjectURL(blob),download:fn}).click();
-    svgEl.removeChild(st);svgEl.removeChild(bg);
+  /* ── SVG Export ── */
+  function exportSVG(svgEl, fn = 'area_chart.svg') {
+    const st = document.createElement('style');
+    st.textContent = `@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');text{font-family:'Pretendard','Noto Sans KR',sans-serif;}`;
+    svgEl.insertBefore(st, svgEl.firstChild);
+    const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    bg.setAttribute('width', '100%'); bg.setAttribute('height', '100%'); bg.setAttribute('fill', '#fff');
+    svgEl.insertBefore(bg, svgEl.firstChild);
+    const blob = new Blob([new XMLSerializer().serializeToString(svgEl)], { type: 'image/svg+xml' });
+    Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: fn }).click();
+    svgEl.removeChild(st); svgEl.removeChild(bg);
   }
-  document.getElementById('export-btn').addEventListener('click',()=>exportSVG(document.querySelector('svg')));
+  document.getElementById('export-btn').addEventListener('click', () => exportSVG(document.querySelector('svg')));
 </script>
 </body>
 </html>

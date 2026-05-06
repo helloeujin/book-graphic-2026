@@ -10,9 +10,27 @@
     body { font-family:'Pretendard','Noto Sans KR',sans-serif; background:#fff; padding:40px 20px; }
 
     .panels { display:flex; gap:24px; align-items:flex-start; }
-    .panel  { border:1px solid #aaa; padding:16px; display:inline-block; }
+    .panel  { padding:16px; display:inline-block; }
 
-    .panel-title { font-size:17px; line-height:22px; font-weight:700; color:#363636; padding-bottom:5px; }
+    .panel-label {
+      font-size: 13px; font-weight: 500; color: #363636;
+      margin-bottom: 14px;
+      display: flex; align-items: center; gap: 8px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #ddd;
+    }
+    .badge {
+      font-size: 12px; font-weight: 700;
+      border-radius: 4px;
+      padding: 3px 10px;
+      display: inline-block;
+      color: #fff;
+      margin-right: 6px;
+      vertical-align: middle;
+      letter-spacing: 0.03em;
+    }
+    .badge-worse  { background: #b8351b; }
+    .badge-better { background: #37760a; }
 
     .legend { display:flex; gap:12px; margin-bottom:4px; }
     .legend-item { display:flex; align-items:center; gap:5px; font-size:13px; color:#363636; }
@@ -26,7 +44,7 @@
 
   <!-- 왼쪽: 가나다순 -->
   <div class="panel">
-    <p class="panel-title">가나다순 정렬</p>
+    <p class="panel-label"><span class="badge badge-worse">Worse</span>가나다순 정렬</p>
     <div class="legend">
       <span class="legend-item"><span class="legend-dot" style="background:#a4a4a4;"></span>그룹 1</span>
       <span class="legend-item"><span class="legend-dot" style="background:#6565FF;"></span>그룹 2</span>
@@ -37,7 +55,7 @@
 
   <!-- 오른쪽: 값 내림차순 -->
   <div class="panel">
-    <p class="panel-title">값 내림차순 정렬</p>
+    <p class="panel-label"><span class="badge badge-better">Better</span>값 내림차순 정렬</p>
     <div class="legend">
       <span class="legend-item"><span class="legend-dot" style="background:#a4a4a4;"></span>그룹 1</span>
       <span class="legend-item"><span class="legend-dot" style="background:#6565FF;"></span>그룹 2</span>

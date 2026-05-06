@@ -13,6 +13,21 @@
     .panels { display:flex; gap:40px; align-items:flex-start; }
     .panel  { width:640px; flex-shrink:0; border:1px solid #aaa; padding:20px; }
 
+    .panel-label {
+      font-size: 13px; font-weight: 500; color: #363636;
+      display: flex; align-items: center; gap: 8px;
+      padding-bottom: 8px; margin-bottom: 14px;
+      border-bottom: 1px solid #ddd;
+    }
+    .badge {
+      font-size: 12px; font-weight: 700;
+      border-radius: 4px; padding: 3px 10px;
+      color: #fff; letter-spacing: 0.03em;
+      flex-shrink: 0;
+    }
+    .badge-worse  { background: #b8351b; }
+    .badge-better { background: #37760a; }
+
     .panel-title { font-size:17px; line-height:22px; font-weight:700; color:#363636; padding-bottom:5px; }
 
     .legend { display:flex; gap:16px; margin-bottom:3px; }
@@ -44,7 +59,7 @@
 
     <!-- 왼쪽: 가로 그룹 막대 그래프 -->
     <div class="panel">
-      <p class="panel-title">그룹 막대 그래프</p>
+      <p class="panel-label"><span class="badge badge-worse">Worse</span>그룹 막대 그래프</p>
       <div class="legend">
         <span class="legend-item"><span class="legend-dot" style="background:#6565FF;"></span>여성</span>
         <span class="legend-item"><span class="legend-dot" style="background:#a4a4a4;"></span>남성</span>
@@ -56,7 +71,7 @@
 
     <!-- 오른쪽: 덤벨 차트 -->
     <div class="panel">
-      <p class="panel-title">덤벨 차트</p>
+      <p class="panel-label"><span class="badge badge-better">Better</span>덤벨 차트</p>
       <div class="legend">
         <span class="legend-item"><span class="legend-dot" style="background:#6565FF;"></span>여성</span>
         <span class="legend-item"><span class="legend-dot" style="background:#a4a4a4;"></span>남성</span>
