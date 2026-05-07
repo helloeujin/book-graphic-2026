@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>누적 면적 차트</title>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Pretendard', 'Noto Sans KR', sans-serif; background: #fff; padding: 40px 20px; }
+    .container { display: inline-block; }
+    h1   { font-size: 17px; line-height: 22px; font-weight: 700; color: #363636; padding-bottom: 5px; }
+    .legend { display: flex; gap: 12px; margin-bottom: 10px; }
+    .legend-item { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #363636; }
+    .legend-swatch { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+    .source { font-size: 13px; line-height: 17px; color: #777; margin-top: 8px; }
+    .tooltip {
+      position: fixed; background: rgba(255,255,255,0.95); border: 1px solid #c6c6c6;
+      border-radius: 4px; padding: 10px 12px; pointer-events: none; opacity: 0;
+      transition: opacity 0.15s; box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    .tooltip-title { font-size: 14px; font-weight: 600; color: #454545; }
+    .tooltip-body  { font-size: 13px; color: #636363; margin-top: 3px; }
+    #export-btn {
+      margin-top: 12px; padding: 8px 16px; font-size: 13px;
+      background: #000; color: #fff; border: none; border-radius: 4px;
+      cursor: pointer; font-family: 'Pretendard', sans-serif;
+    }
+    #export-btn:hover { background: #333; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div style="border: 1px solid #aaa; padding: 16px; display: inline-block;">
+    <h1>연도별 누적 추이</h1>
+    <div class="legend">
+      <span class="legend-item"><span class="legend-swatch" style="background:#888888;"></span>그룹 A</span>
+      <span class="legend-item"><span class="legend-swatch" style="background:#6565FF;"></span>그룹 B</span>
+    </div>
+    <div id="chart"></div>
+    <p class="source">출처: 예시 데이터</p>
+  </div><br>
+  <button id="export-btn">SVG 다운로드</button>
+</div>
+
+<div class="tooltip" id="tooltip">
+  <div class="tooltip-title" id="tt-title"></div>
+  <div class="tooltip-body"  id="tt-body"></div>
+</div>
+
+<script>
+  const years  = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16].map(x => 2000 + (x-1)*20/15);
+  const series = [
+    { name: '그룹 A', color: '#888888', fill: 'rgba(136,136,136,0.6)', values: [12,11,13,16,14,10,11,15,14,13,14,17,19,18,17,18] },
+    { name: '그룹 B', color: '#6565FF', fill: 'rgba(101,101,255,0.6)', values: [ 5, 6, 6, 4, 3, 5, 8,12, 9, 5, 2, 4, 8,11,14,15] }
+  ];
+
+  /* ── 치수 ── */
+  const W = 236, H = 200;
+  const M = { top: 6, right: 24, bottom: 30, left: 36 };
+  const iW = W - M.left - M.right;
+  const iH = H - M.top  - M.bottom;
+
+  const svg = d3.select('#chart').append('svg')
+    .attr('width', W).attr('height', H).attr('xmlns', 'http://www.w3.org/2000/svg');
+  const g = svg.append('g').attr('transform', `translate(${M.left},${M.top})`);
+
+  /* ── 스택 계산 ── */
+  const stackData = years.map((yr, i) => {
+    const row = { year: yr };
+    series.forEach(s => { row[s.name] = s.values[i]; });
+    return row;
+  });
+
+  const stack = d3.stack().keys(series.map(s => s.name));
+  const stacked = stack(stackData);
+
+  /* ── 스케일 ── */
+  const xScale = d3.scaleLinear().domain([2000, 2020]).range([0, iW]);
+  const yScale = d3.scaleLinear().domain([0, 40]).range([iH, 0]);
+  const yTicks = [0, 10, 20, 30, 40];
+  const xTicks = [2000, 2005, 2010, 2015, 2020];
+
+  /* ── 그리드 ── */
+  g.append('g').selectAll('line').data(yTicks.slice(1)).join('line')
+    .attr('x1', 0).attr('x2', iW)
+    .attr('y1', d => yScale(d)).attr('y2', d => yScale(d))
+    .style('stroke', '#aaaaaa').style('stroke-dasharray', '2').style('stroke-opacity', 0.4);
+
+  /* zero line */
+  g.append('line').attr('x1', 0).attr('x2', iW).attr('y1', yScale(0)).attr('y2', yScale(0))
+    .style('stroke', '#363636').style('stroke-opacity', 0.4);
+
+  /* ── Y축 ── */
+  g.append('g')
+    .call(d3.axisLeft(yScale).tickValues(yTicks).tickSize(0).tickPadding(8))
+    .call(a => a.select('.domain').remove())
+    .selectAll('text')
+      .style('font-size', '13px').style('fill', '#999999')
+      .style('font-family', "Pretendard,'Noto Sans KR',sans-serif");
+
+  /* ── X축 ── */
+  g.append('g').attr('transform', `translate(0,${iH})`)
+    .call(d3.axisBottom(xScale).tickValues(xTicks).tickFormat(d3.format('d')).tickSize(4).tickPadding(8))
+    .call(a => a.select('.domain').remove())
+    .call(a => a.selectAll('.tick line').style('stroke', '#aaaaaa'))
+    .selectAll('text')
+      .style('font-size', '13px').style('fill', '#999999')
+      .style('font-family', "Pretendard,'Noto Sans KR',sans-serif");
+
+  /* ── 에어리어 + 상단 라인 제너레이터 ── */
+  const areaGen = d3.area()
+    .x((_, i) => xScale(years[i]))
+    .y0(d => yScale(d[0]))
+    .y1(d => yScale(d[1]))
+    .curve(d3.curveMonotoneX);
+
+  const lineGen = d3.line()
+    .x((_, i) => xScale(years[i]))
+    .y(d => yScale(d[1]))
+    .curve(d3.curveMonotoneX);
+
+  /* ── 클립패스 드로우 애니메이션 ── */
+  const defs = svg.append('defs');
+  const clipRect = defs.append('clipPath').attr('id', 'clip-stacked')
+    .append('rect').attr('x', 0).attr('y', 0).attr('width', 0).attr('height', iH + M.top + M.bottom);
+  clipRect.transition().duration(800).ease(d3.easeCubicInOut).attr('width', iW + M.right);
+
+  const tooltip = document.getElementById('tooltip');
+  const ttTitle = document.getElementById('tt-title');
+  const ttBody  = document.getElementById('tt-body');
+
+  const colorMap = Object.fromEntries(series.map(s => [s.name, s]));
+
+  /* ── 누적 에어리어 + 상단 라인 ── */
+  const grp = g.append('g').attr('clip-path', 'url(#clip-stacked)');
+  stacked.forEach(layer => {
+    const s = colorMap[layer.key];
+    grp.append('path').datum(layer)
+      .attr('fill', s.fill)
+      .attr('d', areaGen);
+    grp.append('path').datum(layer)
+      .attr('fill', 'none')
+      .attr('stroke', s.color)
+      .attr('stroke-width', 1.5)
+      .attr('stroke-linejoin', 'round')
+      .attr('d', lineGen);
+  });
+
+  /* ── 인터랙티브 오버레이 ── */
+  stacked.forEach(layer => {
+    const s = colorMap[layer.key];
+    layer.forEach((d, i) => {
+      g.append('circle')
+        .attr('cx', xScale(years[i])).attr('cy', yScale(d[1]))
+        .attr('r', 4).attr('fill', s.color).attr('fill-opacity', 0)
+        .style('cursor', 'pointer')
+        .on('mouseover', function(event) {
+          d3.select(this).attr('fill-opacity', 1).attr('r', 5);
+          ttTitle.textContent = `${layer.key} · ${years[i]}년`;
+          ttBody.textContent  = `값: ${s.values[i]}  누적: ${d[1].toFixed(1)}`;
+          tooltip.style.opacity = '1';
+          tooltip.style.left = (event.clientX + 12) + 'px';
+          tooltip.style.top  = (event.clientY - 36) + 'px';
+        })
+        .on('mouseleave', function() {
+          d3.select(this).attr('fill-opacity', 0).attr('r', 4);
+          tooltip.style.opacity = '0';
+        });
+    });
+  });
+
+  /* ── SVG Export ── */
+  function exportSVG(svgEl, fn = 'stacked_area_chart.svg') {
+    const st = document.createElement('style');
+    st.textContent = `@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');text{font-family:'Pretendard','Noto Sans KR',sans-serif;}`;
+    svgEl.insertBefore(st, svgEl.firstChild);
+    const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    bg.setAttribute('width', '100%'); bg.setAttribute('height', '100%'); bg.setAttribute('fill', '#fff');
+    svgEl.insertBefore(bg, svgEl.firstChild);
+    const blob = new Blob([new XMLSerializer().serializeToString(svgEl)], { type: 'image/svg+xml' });
+    Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: fn }).click();
+    svgEl.removeChild(st); svgEl.removeChild(bg);
+  }
+  document.getElementById('export-btn').addEventListener('click', () => exportSVG(document.querySelector('svg')));
+</script>
+</body>
+</html>

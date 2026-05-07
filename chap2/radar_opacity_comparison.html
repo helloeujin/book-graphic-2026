@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>레이더 차트 — 불투명 vs 반투명</title>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Pretendard','Noto Sans KR',sans-serif; background:#fff; padding:40px 20px; }
+
+    .panels { display:flex; gap:32px; align-items:flex-start; }
+    .panel  { padding:16px; display:inline-block; }
+
+    .panel-label {
+      font-size:13px; font-weight:500; color:#363636;
+      display:flex; align-items:center; gap:8px;
+      padding-bottom:8px; margin-bottom:14px;
+      border-bottom:1px solid #ddd;
+    }
+    .badge {
+      font-size:12px; font-weight:700;
+      border-radius:4px; padding:3px 10px;
+      color:#fff; letter-spacing:0.03em; flex-shrink:0;
+    }
+    .badge-dont { background:#b8351b; }
+    .badge-do   { background:#37760a; }
+
+    .legend { display:flex; gap:12px; margin-bottom:4px; }
+    .legend-item { display:flex; align-items:center; gap:5px; font-size:12px; color:#363636; }
+    .legend-dot  { width:9px; height:9px; border-radius:50%; display:inline-block; }
+
+    .desc { font-size:12px; color:#838383; margin-top:8px; line-height:16px; }
+  </style>
+</head>
+<body>
+<div class="panels">
+
+  <!-- Don't: 불투명 -->
+  <div class="panel">
+    <p class="panel-label"><span class="badge badge-dont">Don't</span>불투명한 채우기</p>
+    <div class="legend">
+      <span class="legend-item"><span class="legend-dot" style="background:#6565FF;"></span>선수 A</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#a4a4a4;"></span>선수 B</span>
+    </div>
+    <div id="chart-opaque"></div>
+    <p class="desc">뒤에 있는 다각형이 가려져 비교 불가</p>
+  </div>
+
+  <!-- Do: 반투명 -->
+  <div class="panel">
+    <p class="panel-label"><span class="badge badge-do">Do</span>반투명한 채우기</p>
+    <div class="legend">
+      <span class="legend-item"><span class="legend-dot" style="background:#6565FF;"></span>선수 A</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#a4a4a4;"></span>선수 B</span>
+    </div>
+    <div id="chart-transparent"></div>
+    <p class="desc">두 다각형이 겹쳐도 각각의 형태를 읽을 수 있음</p>
+  </div>
+
+</div>
+
+<script>
+const axes = ['속도', '체력', '패스', '수비', '드리블'];
+const seriesData = [
+  { name:'선수 A', color:'#6565FF', values:[82, 74, 88, 61, 90] },
+  { name:'선수 B', color:'#a4a4a4', values:[65, 88, 55, 85, 58] },
+];
+const MAX_VAL = 100;
+const LEVELS  = 4;
+
+function drawRadar(containerId, fillOpacity) {
+  const W = 220, H = 210;
+  const cx = W / 2, cy = H / 2 + 4;
+  const R  = 74;
+  const n  = axes.length;
+  const step  = (2 * Math.PI) / n;
+  const angle = i => -Math.PI / 2 + step * i;
+
+  const toXY = (val, i) => ({
+    x: cx + (val / MAX_VAL) * R * Math.cos(angle(i)),
+    y: cy + (val / MAX_VAL) * R * Math.sin(angle(i))
+  });
+
+  const svg = d3.select(containerId).append('svg')
+    .attr('width',W).attr('height',H).attr('xmlns','http://www.w3.org/2000/svg');
+
+  /* 동심 다각형 그리드 */
+  for (let lv = 1; lv <= LEVELS; lv++) {
+    const r = (lv / LEVELS) * R;
+    const pts = d3.range(n).map(i => [
+      cx + r * Math.cos(angle(i)),
+      cy + r * Math.sin(angle(i))
+    ]);
+    svg.append('polygon')
+      .attr('points', pts.map(p=>p.join(',')).join(' '))
+      .attr('fill','none').attr('stroke','#aaaaaa')
+      .attr('stroke-width',1).attr('stroke-dasharray','2')
+      .attr('stroke-opacity',0.4);
+  }
+
+  /* 축 선 */
+  d3.range(n).forEach(i => {
+    svg.append('line')
+      .attr('x1',cx).attr('y1',cy)
+      .attr('x2', cx + R * Math.cos(angle(i)))
+      .attr('y2', cy + R * Math.sin(angle(i)))
+      .attr('stroke','#aaaaaa').attr('stroke-width',1).attr('stroke-opacity',0.4);
+  });
+
+  /* 축 레이블 */
+  axes.forEach((ax, i) => {
+    const ex = cx + R * Math.cos(angle(i));
+    const ey = cy + R * Math.sin(angle(i));
+    const dx = ex - cx, dy = ey - cy;
+    const len = Math.sqrt(dx*dx+dy*dy);
+    svg.append('text')
+      .attr('x', ex + (dx/len)*13)
+      .attr('y', ey + (dy/len)*13)
+      .attr('text-anchor','middle').attr('dominant-baseline','central')
+      .attr('font-size','11px').attr('fill','#636363')
+      .attr('font-family',"Pretendard,'Noto Sans KR',sans-serif")
+      .text(ax);
+  });
+
+  const pathStr = pts => pts.map((p,i)=>`${i===0?'M':'L'}${p.x},${p.y}`).join(' ')+'Z';
+
+  /* 시리즈 — B 먼저(아래), A 위에 */
+  [...seriesData].reverse().forEach(s => {
+    const coords    = s.values.map((v,i) => toXY(v,i));
+    const zeroCoords = s.values.map((_,i) => ({x:cx,y:cy}));
+
+    /* 채우기 */
+    const fill = svg.append('path')
+      .attr('d', pathStr(zeroCoords))
+      .attr('fill', s.color)
+      .attr('fill-opacity', fillOpacity)
+      .attr('stroke','none');
+    fill.transition().duration(800).ease(d3.easeCubicInOut)
+      .attr('d', pathStr(coords));
+
+    /* 외곽선 */
+    const stroke = svg.append('path')
+      .attr('d', pathStr(zeroCoords))
+      .attr('fill','none').attr('stroke', s.color).attr('stroke-width',1.5);
+    stroke.transition().duration(800).ease(d3.easeCubicInOut)
+      .attr('d', pathStr(coords));
+
+    /* 꼭짓점 점 */
+    coords.forEach(pt => {
+      svg.append('circle')
+        .attr('cx',cx).attr('cy',cy).attr('r',3.5)
+        .attr('fill',s.color).attr('stroke','#fff').attr('stroke-width',1.5)
+        .transition().duration(800).ease(d3.easeCubicInOut)
+        .attr('cx',pt.x).attr('cy',pt.y);
+    });
+  });
+}
+
+drawRadar('#chart-opaque',      1.0);   /* 불투명 */
+drawRadar('#chart-transparent', 0.15);  /* 반투명 */
+</script>
+</body>
+</html>

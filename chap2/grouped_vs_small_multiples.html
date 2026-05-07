@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>그룹 막대 vs 스몰 멀티플</title>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Pretendard', 'Noto Sans KR', sans-serif;
+      background: #fff;
+      padding: 40px 20px;
+    }
+    .page { max-width: 1360px; margin: 0 auto; }
+
+    /* 두 패널 래퍼 */
+    .panels {
+      display: flex;
+      gap: 40px;
+      align-items: flex-start;
+    }
+    .panel {
+      width: 640px;
+      flex-shrink: 0;
+      border: 1px solid #aaa;
+      padding: 20px;
+    }
+
+    /* 패널 공통 타이포 */
+    .panel-label {
+      font-size: 13px; font-weight: 500; color: #363636;
+      display: flex; align-items: center; gap: 8px;
+      padding-bottom: 8px; margin-bottom: 14px;
+      border-bottom: 1px solid #ddd;
+    }
+    .badge {
+      font-size: 12px; font-weight: 700;
+      border-radius: 4px; padding: 3px 10px;
+      color: #fff; letter-spacing: 0.03em; flex-shrink: 0;
+    }
+    .badge-worse  { background: #b8351b; }
+    .badge-better { background: #37760a; }
+
+    .panel-title {
+      font-size: 17px; line-height: 22px; font-weight: 700;
+      color: #363636; padding-bottom: 5px;
+    }
+    .panel-dek {
+      font-size: 15px; line-height: 19px; font-weight: 400;
+      color: #777; padding-bottom: 10px;
+    }
+    .panel-dek.bad  { color: #b8351b; }
+    .panel-dek.good { color: #37760a; }
+
+    /* 레전드 */
+    .legend {
+      display: flex; flex-wrap: wrap; gap: 10px;
+      margin-bottom: 3px;
+    }
+    .legend-item {
+      display: flex; align-items: center; gap: 5px;
+      font-size: 13px; color: #363636;
+    }
+    .legend-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+    }
+
+    /* 스몰 멀티플 그리드 */
+    .sm-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+    .sm-cell {
+      display: flex; flex-direction: column;
+    }
+    .sm-label {
+      font-size: 13px; font-weight: 600; color: #454545;
+      margin-bottom: 4px;
+    }
+
+    /* 출처 */
+    .source {
+      font-size: 13px; line-height: 17px; color: #777;
+      margin-top: 8px;
+    }
+
+    /* SVG 공통 */
+    svg text { font-family: 'Pretendard', 'Noto Sans KR', sans-serif; }
+  </style>
+</head>
+<body>
+<div class="page">
+  <div class="panels">
+
+    <!-- ───────── 왼쪽: 그룹 막대 ───────── -->
+    <div class="panel">
+      <p class="panel-label"><span class="badge badge-worse">Worse</span>그룹 막대 그래프</p>
+      <div class="legend" id="legend-grouped"></div>
+      <div id="chart-grouped"></div>
+      <p class="source">출처: 예시 데이터</p>
+    </div>
+
+    <!-- ───────── 오른쪽: 스몰 멀티플 ───────── -->
+    <div class="panel">
+      <p class="panel-label"><span class="badge badge-better">Better</span>스몰 멀티플 (Small Multiples)</p>
+      <div class="sm-grid" id="sm-grid"></div>
+      <p class="source">출처: 예시 데이터</p>
+    </div>
+
+  </div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════
+   공통 데이터 & 설정
+═══════════════════════════════════════ */
+const groups = ['그룹 1','그룹 2','그룹 3','그룹 4','그룹 5'];
+const items  = ['A','B','C','D','E'];
+
+const raw = {
+  '그룹 1': { A: 8.5,  B: 14.2, C: 11.5, D: 6.7,  E: 9.3  },
+  '그룹 2': { A: 5.2,  B: 10.8, C: 7.3,  D: 12.4, E: 4.6  },
+  '그룹 3': { A: 11.3, B: 7.6,  C: 13.2, D: 4.8,  E: 8.9  },
+  '그룹 4': { A: 6.8,  B: 12.4, C: 5.9,  D: 14.3, E: 10.1 },
+  '그룹 5': { A: 9.1,  B: 6.3,  C: 10.7, D: 7.5,  E: 13.2 }
+};
+
+const colors = {
+  '그룹 1': '#6565FF',
+  '그룹 2': '#8E8EFF',
+  '그룹 3': '#ABABFF',
+  '그룹 4': '#a4a4a4',
+  '그룹 5': '#c6c6c6'
+};
+const hovers = {
+  '그룹 1': '#4444dd',
+  '그룹 2': '#6a6add',
+  '그룹 3': '#8888cc',
+  '그룹 4': '#838383',
+  '그룹 5': '#a4a4a4'
+};
+
+const YMAX = 18;
+
+
+/* ═══════════════════════════════════════
+   왼쪽: 그룹 막대 그래프
+═══════════════════════════════════════ */
+const GW = 600, GH = 300;
+const GM = { top: 6, right: 12, bottom: 32, left: 36 };
+const giW = GW - GM.left - GM.right;
+const giH = GH - GM.top  - GM.bottom;
+
+/* 레전드 */
+const legendEl = document.getElementById('legend-grouped');
+groups.forEach(gr => {
+  legendEl.innerHTML += `
+    <span class="legend-item">
+      <span class="legend-dot" style="background:${colors[gr]};"></span>
+      ${gr}
+    </span>`;
+});
+
+const svgG = d3.select('#chart-grouped')
+  .append('svg').attr('width', GW).attr('height', GH).attr('xmlns','http://www.w3.org/2000/svg')
+  .append('g').attr('transform', `translate(${GM.left},${GM.top})`);
+
+const x0g = d3.scaleBand().domain(items).range([0, giW]).paddingInner(0.2).paddingOuter(0.1);
+const x1g = d3.scaleBand().domain(groups).range([0, x0g.bandwidth()]).padding(0.05);
+const yg  = d3.scaleLinear().domain([0, YMAX]).range([giH, 0]);
+
+/* 그리드 */
+svgG.append('g').selectAll('line').data([5,10,15]).join('line')
+  .attr('x1',0).attr('x2',giW).attr('y1',d=>yg(d)).attr('y2',d=>yg(d))
+  .style('stroke','#aaaaaa').style('stroke-dasharray','2').style('stroke-opacity',0.4);
+
+/* zero */
+svgG.append('line').attr('x1',0).attr('x2',giW).attr('y1',yg(0)).attr('y2',yg(0))
+  .style('stroke','#363636').style('stroke-opacity',0.4);
+
+/* Y축 */
+svgG.append('g')
+  .call(d3.axisLeft(yg).tickValues([0,5,10,15]).tickSize(0).tickPadding(6))
+  .call(a=>a.select('.domain').remove())
+  .selectAll('text').style('font-size','12px').style('fill','#999');
+
+/* X축 */
+svgG.append('g').attr('transform',`translate(0,${giH})`)
+  .call(d3.axisBottom(x0g).tickSize(0).tickPadding(8))
+  .call(a=>a.select('.domain').remove())
+  .selectAll('text').style('font-size','12px').style('fill','#333');
+
+/* 막대 */
+items.forEach(item => {
+  const gx = svgG.append('g').attr('transform',`translate(${x0g(item)},0)`);
+  groups.forEach(gr => {
+    const val = raw[gr][item];
+    gx.append('rect')
+      .attr('x', x1g(gr)).attr('width', x1g.bandwidth())
+      .attr('y', giH).attr('height', 0)
+      .attr('fill', colors[gr]).attr('opacity', 0.85)
+      .on('mouseover', function(){ d3.select(this).attr('fill', hovers[gr]); })
+      .on('mouseout',  function(){ d3.select(this).attr('fill', colors[gr]); })
+      .transition().duration(800).ease(d3.easeCubicInOut)
+      .attr('y', yg(val)).attr('height', giH - yg(val));
+  });
+});
+
+
+/* ═══════════════════════════════════════
+   오른쪽: 스몰 멀티플
+═══════════════════════════════════════ */
+const SW = 190, SH = 120;
+const SM = { top: 4, right: 8, bottom: 24, left: 28 };
+const siW = SW - SM.left - SM.right;
+const siH = SH - SM.top  - SM.bottom;
+
+const xs = d3.scaleBand().domain(items).range([0, siW]).padding(0.25);
+const ys = d3.scaleLinear().domain([0, YMAX]).range([siH, 0]);
+
+const gridEl = document.getElementById('sm-grid');
+
+groups.forEach(gr => {
+  /* 셀 컨테이너 */
+  const cell = document.createElement('div');
+  cell.className = 'sm-cell';
+  cell.innerHTML = `<div class="sm-label">${gr}</div>`;
+  gridEl.appendChild(cell);
+
+  const svgS = d3.select(cell)
+    .append('svg').attr('width', SW).attr('height', SH).attr('xmlns','http://www.w3.org/2000/svg')
+    .append('g').attr('transform', `translate(${SM.left},${SM.top})`);
+
+  /* 그리드 */
+  svgS.append('g').selectAll('line').data([5,10,15]).join('line')
+    .attr('x1',0).attr('x2',siW).attr('y1',d=>ys(d)).attr('y2',d=>ys(d))
+    .style('stroke','#aaaaaa').style('stroke-dasharray','2').style('stroke-opacity',0.4);
+
+  /* zero */
+  svgS.append('line').attr('x1',0).attr('x2',siW).attr('y1',ys(0)).attr('y2',ys(0))
+    .style('stroke','#363636').style('stroke-opacity',0.4);
+
+  /* Y축 — 첫 열만 레이블 표시 */
+  const isFirstCol = (groups.indexOf(gr) % 3 === 0);
+  svgS.append('g')
+    .call(d3.axisLeft(ys).tickValues([0,5,10,15]).tickSize(0).tickPadding(4)
+      .tickFormat(isFirstCol ? d3.format('d') : ''))
+    .call(a=>a.select('.domain').remove())
+    .selectAll('text').style('font-size','11px').style('fill','#999');
+
+  /* X축 */
+  svgS.append('g').attr('transform',`translate(0,${siH})`)
+    .call(d3.axisBottom(xs).tickSize(0).tickPadding(5))
+    .call(a=>a.select('.domain').remove())
+    .selectAll('text').style('font-size','11px').style('fill','#333');
+
+  /* 막대 — 해당 그룹은 색상, 나머지는 gray */
+  items.forEach(item => {
+    const val = raw[gr][item];
+    svgS.append('rect')
+      .attr('x', xs(item)).attr('width', xs.bandwidth())
+      .attr('y', siH).attr('height', 0)
+      .attr('fill', colors[gr]).attr('opacity', 0.85)
+      .transition().duration(800).delay(groups.indexOf(gr) * 80).ease(d3.easeCubicInOut)
+      .attr('y', ys(val)).attr('height', siH - ys(val));
+  });
+});
+</script>
+</body>
+</html>

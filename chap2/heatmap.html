@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>히트맵</title>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Pretendard', 'Noto Sans KR', sans-serif; background: #fff; padding: 40px 20px; }
+    .container { display: inline-block; }
+    h1   { font-size: 17px; line-height: 22px; font-weight: 700; color: #363636; padding-bottom: 5px; }
+    .source { font-size: 13px; line-height: 17px; color: #777; margin-top: 8px; }
+    .tooltip {
+      position: fixed; background: rgba(255,255,255,0.95); border: 1px solid #c6c6c6;
+      border-radius: 4px; padding: 10px 12px; pointer-events: none; opacity: 0;
+      transition: opacity 0.15s; box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    .tooltip-title { font-size: 14px; font-weight: 600; color: #454545; }
+    .tooltip-body  { font-size: 13px; color: #636363; margin-top: 3px; }
+    #export-btn {
+      margin-top: 12px; padding: 8px 16px; font-size: 13px;
+      background: #000; color: #fff; border: none; border-radius: 4px;
+      cursor: pointer; font-family: 'Pretendard', sans-serif;
+    }
+    #export-btn:hover { background: #333; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div style="border: 1px solid #aaa; padding: 16px; display: inline-block;">
+    <h1>항목별 연도 비교</h1>
+    <div id="chart"></div>
+    <p class="source">출처: 예시 데이터</p>
+  </div><br>
+  <button id="export-btn">SVG 다운로드</button>
+</div>
+
+<div class="tooltip" id="tooltip">
+  <div class="tooltip-title" id="tt-title"></div>
+  <div class="tooltip-body"  id="tt-body"></div>
+</div>
+
+<script>
+  const xLabels = [2000, 2005, 2010, 2015, 2020];
+  const yLabels = ['A', 'B', 'C', 'D', 'E'];
+
+  const data = [
+    { y: 'A', values: [-4, -1,  3,  8, 14] },
+    { y: 'B', values: [ 5, -3, 11, -2,  9] },
+    { y: 'C', values: [-2,  6, -4, 10, -5] },
+    { y: 'D', values: [ 9, -4,  5, -3,  2] },
+    { y: 'E', values: [-5, 12, -1,  4, 15] }
+  ];
+
+  const flat = data.flatMap(row =>
+    row.values.map((v, xi) => ({ y: row.y, x: xLabels[xi], value: v }))
+  );
+
+  /* ── 치수 ── */
+  const W  = 236, H = 220;   // H 살짝 높여서 legend 공간 확보
+  const M  = { top: 6, right: 10, bottom: 50, left: 48 };
+  const iW = W - M.left - M.right;
+  const iH = H - M.top  - M.bottom;
+
+  const svg = d3.select('#chart').append('svg')
+    .attr('width', W).attr('height', H).attr('xmlns', 'http://www.w3.org/2000/svg');
+  const g = svg.append('g').attr('transform', `translate(${M.left},${M.top})`);
+
+  /* ── 스케일 ── */
+  const xScale = d3.scaleBand().domain(xLabels).range([0, iW]).padding(0.06);
+  const yScale = d3.scaleBand().domain(yLabels).range([0, iH]).padding(0.06);
+
+  const colorScale = d3.scaleDiverging()
+    .domain([-5, 0, 15])
+    .interpolator(t => t < 0.5
+      ? d3.interpolateRgb('#999999', '#f4f4f4')(t * 2)
+      : d3.interpolateRgb('#f4f4f4', '#6565FF')((t - 0.5) * 2)
+    );
+
+  /* ── X축 ── */
+  g.append('g').attr('transform', `translate(0,${iH})`)
+    .call(d3.axisBottom(xScale).tickSize(0).tickPadding(8))
+    .call(a => a.select('.domain').remove())
+    .selectAll('text')
+      .style('font-size', '13px').style('fill', '#999999')
+      .style('font-family', "Pretendard,'Noto Sans KR',sans-serif");
+
+  /* ── Y축 ── */
+  g.append('g')
+    .call(d3.axisLeft(yScale).tickSize(0).tickPadding(8))
+    .call(a => a.select('.domain').remove())
+    .selectAll('text')
+      .style('font-size', '13px').style('fill', '#636363')
+      .style('font-family', "Pretendard,'Noto Sans KR',sans-serif");
+
+  /* ── 셀 ── */
+  const tooltip = document.getElementById('tooltip');
+  const ttTitle = document.getElementById('tt-title');
+  const ttBody  = document.getElementById('tt-body');
+
+  const cells = g.selectAll('rect.cell')
+    .data(flat).join('rect')
+      .attr('class', 'cell')
+      .attr('x',      d => xScale(d.x))
+      .attr('y',      d => yScale(d.y))
+      .attr('width',  xScale.bandwidth())
+      .attr('height', yScale.bandwidth())
+      .attr('rx', 2)
+      .attr('fill', '#f4f4f4')
+      .style('cursor', 'pointer')
+      .on('mouseover', function(event, d) {
+        d3.select(this).attr('opacity', 0.75);
+        ttTitle.textContent = `${d.y} · ${d.x}년`;
+        ttBody.textContent  = `값: ${d.value}`;
+        tooltip.style.opacity = '1';
+        tooltip.style.left = (event.clientX + 12) + 'px';
+        tooltip.style.top  = (event.clientY - 36) + 'px';
+      })
+      .on('mouseleave', function() {
+        d3.select(this).attr('opacity', 1);
+        tooltip.style.opacity = '0';
+      });
+
+  cells.transition()
+    .duration(600).delay((_, i) => i * 18)
+    .ease(d3.easeCubicInOut)
+    .attr('fill', d => colorScale(d.value));
+
+  /* ── Gradient bar legend ── */
+  const legendW  = iW;
+  const legendH  = 8;
+  const legendY  = iH + 30;   // X축 아래
+
+  const defs = svg.append('defs');
+  const gradId = 'legend-grad';
+  const grad = defs.append('linearGradient').attr('id', gradId)
+    .attr('x1', '0%').attr('x2', '100%');
+  // 0의 위치: -5~15 범위에서 5/20 = 25%
+  const zeroPos = 5 / 20;
+  grad.append('stop').attr('offset',              '0%').attr('stop-color', '#999999');
+  grad.append('stop').attr('offset', `${zeroPos * 100}%`).attr('stop-color', '#f4f4f4');
+  grad.append('stop').attr('offset',            '100%').attr('stop-color', '#6565FF');
+
+  const lg = g.append('g').attr('transform', `translate(0,${legendY})`);
+
+  lg.append('rect')
+    .attr('width', legendW).attr('height', legendH)
+    .attr('rx', 2)
+    .attr('fill', `url(#${gradId})`);
+
+  // -5
+  lg.append('text')
+    .attr('x', 0).attr('y', legendH + 12)
+    .attr('text-anchor', 'start')
+    .style('font-size', '11px').style('fill', '#999999')
+    .style('font-family', "Pretendard,'Noto Sans KR',sans-serif")
+    .text('-5');
+
+  // 0 (25% 위치)
+  lg.append('text')
+    .attr('x', legendW * zeroPos).attr('y', legendH + 12)
+    .attr('text-anchor', 'middle')
+    .style('font-size', '11px').style('fill', '#999999')
+    .style('font-family', "Pretendard,'Noto Sans KR',sans-serif")
+    .text('0');
+
+  // 15
+  lg.append('text')
+    .attr('x', legendW).attr('y', legendH + 12)
+    .attr('text-anchor', 'end')
+    .style('font-size', '11px').style('fill', '#999999')
+    .style('font-family', "Pretendard,'Noto Sans KR',sans-serif")
+    .text('15');
+
+  /* ── SVG Export ── */
+  function exportSVG(svgEl, fn = 'heatmap.svg') {
+    const st = document.createElement('style');
+    st.textContent = `@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');text{font-family:'Pretendard','Noto Sans KR',sans-serif;}`;
+    svgEl.insertBefore(st, svgEl.firstChild);
+    const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    bg.setAttribute('width', '100%'); bg.setAttribute('height', '100%'); bg.setAttribute('fill', '#fff');
+    svgEl.insertBefore(bg, svgEl.firstChild);
+    const blob = new Blob([new XMLSerializer().serializeToString(svgEl)], { type: 'image/svg+xml' });
+    Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: fn }).click();
+    svgEl.removeChild(st); svgEl.removeChild(bg);
+  }
+  document.getElementById('export-btn').addEventListener('click', () => exportSVG(document.querySelector('svg')));
+</script>
+</body>
+</html>
