@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>100% 누적 면적 그래프</title>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family:'Pretendard','Noto Sans KR',sans-serif;
+      background:#fff;
+      padding:40px 20px;
+    }
+    .legend {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 14px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 14px;
+      font-weight: 400;
+      color: #363636;
+    }
+    .legend-dot {
+      width: 12px; height: 12px;
+      border-radius: 50%; flex-shrink: 0;
+    }
+    .source {
+      font-size: 13px; line-height: 17px;
+      color: #777; margin-top: 8px;
+    }
+    svg text { font-family:'Pretendard','Noto Sans KR',sans-serif; }
+  </style>
+</head>
+<body>
+
+<div class="legend" id="legend"></div>
+<div id="chart"></div>
+<p class="source">출처: <a href="https://ourworldindata.org/grapher/electricity-prod-source-stacked" target="_blank" style="color:#777;">Our World in Data</a></p>
+
+<script>
+const groupKeys  = ['fossil','nuclear','renew'];
+const groupNames = { fossil:'화석연료', nuclear:'원자력', renew:'재생에너지' };
+const colors     = { fossil:'#6565FF', nuclear:'#a4a4a4', renew:'#8E8EFF' };
+const FONT       = "Pretendard,'Noto Sans KR',sans-serif";
+
+const rawData = [
+  { t:'2000', fossil:9.9,  nuclear:2.5, renew:2.9 },
+  { t:'2001', fossil:10.1, nuclear:2.6, renew:2.8 },
+  { t:'2002', fossil:10.5, nuclear:2.7, renew:2.9 },
+  { t:'2003', fossil:11.1, nuclear:2.6, renew:2.9 },
+  { t:'2004', fossil:11.6, nuclear:2.7, renew:3.1 },
+  { t:'2005', fossil:12.1, nuclear:2.7, renew:3.3 },
+  { t:'2006', fossil:12.6, nuclear:2.8, renew:3.4 },
+  { t:'2007', fossil:13.5, nuclear:2.7, renew:3.5 },
+  { t:'2008', fossil:13.6, nuclear:2.7, renew:3.8 },
+  { t:'2009', fossil:13.4, nuclear:2.7, renew:3.9 },
+  { t:'2010', fossil:14.3, nuclear:2.7, renew:4.2 },
+  { t:'2011', fossil:15.0, nuclear:2.6, renew:4.4 },
+  { t:'2012', fossil:15.4, nuclear:2.4, renew:4.7 },
+  { t:'2013', fossil:15.7, nuclear:2.4, renew:5.0 },
+  { t:'2014', fossil:16.0, nuclear:2.5, renew:5.3 },
+  { t:'2015', fossil:16.0, nuclear:2.5, renew:5.5 },
+  { t:'2016', fossil:16.3, nuclear:2.6, renew:5.9 },
+  { t:'2017', fossil:16.6, nuclear:2.6, renew:6.2 },
+  { t:'2018', fossil:17.2, nuclear:2.7, renew:6.6 },
+  { t:'2019', fossil:17.1, nuclear:2.8, renew:7.0 },
+  { t:'2020', fossil:16.6, nuclear:2.6, renew:7.5 },
+  { t:'2021', fossil:17.6, nuclear:2.8, renew:7.9 },
+  { t:'2022', fossil:17.8, nuclear:2.6, renew:8.5 },
+  { t:'2023', fossil:18.0, nuclear:2.7, renew:9.0 },
+  { t:'2024', fossil:18.3, nuclear:2.8, renew:9.9 },
+  { t:'2025', fossil:18.2, nuclear:2.8, renew:10.7 },
+];
+
+// 비율로 변환
+const pctData = rawData.map(d => {
+  const total = d.fossil + d.nuclear + d.renew;
+  return {
+    t:       d.t,
+    fossil:  (d.fossil  / total) * 100,
+    nuclear: (d.nuclear / total) * 100,
+    renew:   (d.renew   / total) * 100,
+  };
+});
+
+const timeLabels = rawData.map(d => d.t);
+
+const W = 500, H = 280;
+const M = { top:18, right:24, bottom:32, left:44 };
+const iW = W - M.left - M.right;
+const iH = H - M.top  - M.bottom;
+
+const yTicks  = [0, 25, 50, 75, 100];
+const topTick = 100;
+
+/* 레전드 */
+const legendEl = document.getElementById('legend');
+groupKeys.forEach(k => {
+  legendEl.innerHTML += `
+    <span class="legend-item">
+      <span class="legend-dot" style="background:${colors[k]};"></span>
+      ${groupNames[k]}
+    </span>`;
+});
+
+const svg = d3.select('#chart').append('svg')
+  .attr('width', W).attr('height', H)
+  .append('g').attr('transform', `translate(${M.left},${M.top})`);
+
+const x = d3.scalePoint().domain(timeLabels).range([0, iW]).padding(0.05);
+const y = d3.scaleLinear().domain([0, 100]).range([iH, 0]);
+
+/* 그리드 */
+svg.append('g').selectAll('line').data(yTicks.slice(1)).join('line')
+  .attr('x1', 0).attr('x2', iW)
+  .attr('y1', d => y(d)).attr('y2', d => y(d))
+  .style('stroke', d => d === 0 ? '#363636' : '#aaaaaa')
+  .style('stroke-dasharray', d => d === 0 ? '0' : '2')
+  .style('stroke-opacity', 0.4);
+
+/* zero */
+svg.append('line').attr('x1',0).attr('x2',iW).attr('y1',y(0)).attr('y2',y(0))
+  .style('stroke','#363636').style('stroke-opacity',0.4);
+
+/* Y축 — 모든 tick에 % 표시 */
+svg.append('g')
+  .call(d3.axisLeft(y).tickValues(yTicks).tickSize(0).tickPadding(6)
+    .tickFormat(d => `${d}%`))
+  .call(a => a.select('.domain').remove())
+  .selectAll('text').style('font-size','13px').style('fill','#999999')
+  .style('font-family', FONT).style('text-anchor','end');
+
+/* X축 */
+svg.append('g').attr('transform',`translate(0,${iH})`)
+  .call(d3.axisBottom(x).tickValues(['2000','2005','2010','2015','2020','2025'])
+    .tickSize(4).tickPadding(8))
+  .call(a => a.select('.domain').remove())
+  .call(a => a.selectAll('.tick line').style('stroke','#aaaaaa'))
+  .selectAll('text').style('font-size','13px').style('fill','#999999')
+  .style('font-family', FONT);
+
+/* 100% 누적 스택 */
+const stackGen = d3.stack().keys(groupKeys).offset(d3.stackOffsetExpand);
+const series   = stackGen(pctData.map(d => ({
+  ...d,
+  fossil:  d.fossil  / 100,
+  nuclear: d.nuclear / 100,
+  renew:   d.renew   / 100,
+})));
+
+const areaGen = d3.area()
+  .x(d => x(d.data.t))
+  .y0(d => y(d[0] * 100))
+  .y1(d => y(d[1] * 100))
+  .curve(d3.curveMonotoneX);
+
+const lineGen = d3.line()
+  .x(d => x(d.data.t))
+  .y(d => y(d[1] * 100))
+  .curve(d3.curveMonotoneX);
+
+series.forEach((layer, i) => {
+  const k = groupKeys[i];
+  svg.append('path').datum(layer)
+    .attr('fill', colors[k]).attr('fill-opacity', 0.75)
+    .attr('d', areaGen);
+  svg.append('path').datum(layer)
+    .attr('fill','none').attr('stroke', colors[k])
+    .attr('stroke-width', 1.5).attr('d', lineGen);
+});
+</script>
+</body>
+</html>
