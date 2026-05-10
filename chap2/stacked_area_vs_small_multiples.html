@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>누적 면적 vs 스몰 멀티플</title>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Pretendard', 'Noto Sans KR', sans-serif;
+      background: #fff;
+      padding: 40px 20px;
+    }
+    .page { max-width: 1360px; margin: 0 auto; }
+
+    .panels {
+      display: flex;
+      gap: 40px;
+      align-items: flex-start;
+    }
+    .panel {
+      width: 640px;
+      flex-shrink: 0;
+      border: 1px solid #aaa;
+      padding: 20px;
+    }
+
+    .panel-label {
+      font-size: 13px; font-weight: 500; color: #363636;
+      display: flex; align-items: center; gap: 8px;
+      padding-bottom: 8px; margin-bottom: 14px;
+      border-bottom: 1px solid #ddd;
+    }
+    .badge {
+      font-size: 12px; font-weight: 700;
+      border-radius: 4px; padding: 3px 10px;
+      color: #fff; letter-spacing: 0.03em; flex-shrink: 0;
+    }
+    .badge-worse  { background: #b8351b; }
+    .badge-better { background: #37760a; }
+
+    .legend {
+      display: flex; flex-wrap: wrap; gap: 16px;
+      margin-bottom: 14px;
+    }
+    .legend-item {
+      display: flex; align-items: center; gap: 5px;
+      font-size: 14px; font-weight: 400; color: #363636;
+    }
+    .legend-dot {
+      width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0;
+    }
+
+    /* 스몰 멀티플 1×3 */
+    .sm-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px 10px;
+    }
+    .sm-cell { display: flex; flex-direction: column; }
+    .sm-label {
+      font-size: 13px; font-weight: 600; color: #454545;
+      margin-bottom: 4px;
+    }
+
+    .source {
+      font-size: 13px; line-height: 17px; color: #777;
+      margin-top: 8px;
+    }
+
+    svg text { font-family: 'Pretendard', 'Noto Sans KR', sans-serif; }
+  </style>
+</head>
+<body>
+<div class="page">
+  <div class="panels">
+
+    <!-- 왼쪽: 누적 면적 -->
+    <div class="panel">
+      <p class="panel-label"><span class="badge badge-worse">Worse</span>누적 면적 그래프</p>
+      <div class="legend" id="legend-stacked"></div>
+      <div id="chart-stacked"></div>
+      <p class="source">출처: <a href="https://ourworldindata.org/grapher/electricity-prod-source-stacked" target="_blank" style="color:#777;">Our World in Data</a></p>
+    </div>
+
+    <!-- 오른쪽: 스몰 멀티플 -->
+    <div class="panel">
+      <p class="panel-label"><span class="badge badge-better">Better</span>스몰 멀티플 (Small Multiples)</p>
+      <div class="sm-grid" id="sm-grid"></div>
+      <p class="source">출처: <a href="https://ourworldindata.org/grapher/electricity-prod-source-stacked" target="_blank" style="color:#777;">Our World in Data</a></p>
+    </div>
+
+  </div>
+</div>
+
+<script>
+/* ═══════════════ 공통 데이터 ═══════════════
+   출처: Our World in Data (Ember, 2024)
+   단위: 천 TWh | 기간: 2011–2023
+   화석연료 = Coal + Gas + Oil
+   재생에너지 = Solar + Wind + Hydropower + Bioenergy + Other renewables
+═══════════════════════════════════════ */
+const groupKeys  = ['fossil','nuclear','renew'];
+const groupNames = { fossil:'화석연료', nuclear:'원자력', renew:'재생에너지' };
+const timeLabels = ['2000','2001','2002','2003','2004','2005','2006','2007','2008','2009','2010','2011','2012','2013','2014','2015','2016','2017','2018','2019','2020','2021','2022','2023','2024','2025'];
+
+const rawData = [
+  { t:'2000', fossil:9.9,  nuclear:2.5, renew:2.9 },
+  { t:'2001', fossil:10.1, nuclear:2.6, renew:2.8 },
+  { t:'2002', fossil:10.5, nuclear:2.7, renew:2.9 },
+  { t:'2003', fossil:11.1, nuclear:2.6, renew:2.9 },
+  { t:'2004', fossil:11.6, nuclear:2.7, renew:3.1 },
+  { t:'2005', fossil:12.1, nuclear:2.7, renew:3.3 },
+  { t:'2006', fossil:12.6, nuclear:2.8, renew:3.4 },
+  { t:'2007', fossil:13.5, nuclear:2.7, renew:3.5 },
+  { t:'2008', fossil:13.6, nuclear:2.7, renew:3.8 },
+  { t:'2009', fossil:13.4, nuclear:2.7, renew:3.9 },
+  { t:'2010', fossil:14.3, nuclear:2.7, renew:4.2 },
+  { t:'2011', fossil:15.0, nuclear:2.6, renew:4.4 },
+  { t:'2012', fossil:15.4, nuclear:2.4, renew:4.7 },
+  { t:'2013', fossil:15.7, nuclear:2.4, renew:5.0 },
+  { t:'2014', fossil:16.0, nuclear:2.5, renew:5.3 },
+  { t:'2015', fossil:16.0, nuclear:2.5, renew:5.5 },
+  { t:'2016', fossil:16.3, nuclear:2.6, renew:5.9 },
+  { t:'2017', fossil:16.6, nuclear:2.6, renew:6.2 },
+  { t:'2018', fossil:17.2, nuclear:2.7, renew:6.6 },
+  { t:'2019', fossil:17.1, nuclear:2.8, renew:7.0 },
+  { t:'2020', fossil:16.6, nuclear:2.6, renew:7.5 },
+  { t:'2021', fossil:17.6, nuclear:2.8, renew:7.9 },
+  { t:'2022', fossil:17.8, nuclear:2.6, renew:8.5 },
+  { t:'2023', fossil:18.0, nuclear:2.7, renew:9.0 },
+  { t:'2024', fossil:18.3, nuclear:2.8, renew:9.9 },
+  { t:'2025', fossil:18.2, nuclear:2.8, renew:10.7 },
+];
+
+const colors = { fossil:'#6565FF', nuclear:'#a4a4a4', renew:'#8E8EFF' };
+
+/* ═══════════════ 왼쪽: 누적 면적 ═══════════════ */
+const GW = 600, GH = 300;
+const GM = { top:18, right:24, bottom:32, left:56 };
+const giW = GW - GM.left - GM.right;
+const giH = GH - GM.top  - GM.bottom;
+
+const legendEl = document.getElementById('legend-stacked');
+groupKeys.forEach(k => {
+  legendEl.innerHTML += `<span class="legend-item"><span class="legend-dot" style="background:${colors[k]};"></span>${groupNames[k]}</span>`;
+});
+
+const stackGen = d3.stack().keys(groupKeys);
+const series   = stackGen(rawData);
+
+const svgG = d3.select('#chart-stacked')
+  .append('svg').attr('width', GW).attr('height', GH)
+  .append('g').attr('transform', `translate(${GM.left},${GM.top})`);
+
+const xg = d3.scalePoint().domain(timeLabels).range([0, giW]).padding(0.05);
+const yg = d3.scaleLinear().domain([0, 30]).range([giH, 0]);
+const yTicksG = [0, 10, 20, 30];
+
+svgG.append('g').selectAll('line').data(yTicksG.slice(1)).join('line')
+  .attr('x1', d => d === 30 ? 28 : 0).attr('x2', giW)
+  .attr('y1',d=>yg(d)).attr('y2',d=>yg(d))
+  .style('stroke','#aaaaaa').style('stroke-dasharray','2').style('stroke-opacity',0.4);
+
+svgG.append('line').attr('x1',0).attr('x2',giW).attr('y1',yg(0)).attr('y2',yg(0))
+  .style('stroke','#363636').style('stroke-opacity',0.4);
+
+svgG.append('g')
+  .call(d3.axisLeft(yg).tickValues(yTicksG).tickSize(0).tickPadding(6)
+    .tickFormat(d => d3.format(',')(d * 1000)))
+  .call(a => a.select('.domain').remove())
+  .selectAll('text').style('font-size','13px').style('fill','#999999')
+  .style('font-family',"Pretendard,'Noto Sans KR',sans-serif").style('text-anchor','end');
+
+svgG.append('text')
+  .attr('x', -6).attr('y', yg(30)).attr('dy', '0.32em').attr('dx', 2)
+  .style('text-anchor', 'start').style('font-size','13px').style('fill','#999999')
+  .style('font-family',"Pretendard,'Noto Sans KR',sans-serif").text('TWh');
+
+svgG.append('g').attr('transform',`translate(0,${giH})`)
+  .call(d3.axisBottom(xg).tickValues(['2000','2005','2010','2015','2020','2025']).tickSize(4).tickPadding(8))
+  .call(a => a.select('.domain').remove())
+  .call(a => a.selectAll('.tick line').style('stroke','#aaaaaa'))
+  .selectAll('text').style('font-size','13px').style('fill','#999999')
+  .style('font-family',"Pretendard,'Noto Sans KR',sans-serif");
+
+const areaGen = d3.area().x(d => xg(d.data.t)).y0(d => yg(d[0])).y1(d => yg(d[1])).curve(d3.curveMonotoneX);
+const lineTop = d3.line().x(d => xg(d.data.t)).y(d => yg(d[1])).curve(d3.curveMonotoneX);
+
+series.forEach((layer, i) => {
+  const k = groupKeys[i];
+  svgG.append('path').datum(layer).attr('fill', colors[k]).attr('fill-opacity', 0.82).attr('d', areaGen);
+  svgG.append('path').datum(layer).attr('fill','none').attr('stroke', colors[k]).attr('stroke-width', 1.5).attr('d', lineTop);
+});
+
+
+/* ═══════════════ 오른쪽: 스몰 멀티플 1×3 ═══════════════ */
+const SW = 185, SH = 145;
+const SM = { top:14, right:20, bottom:24, left:48 };
+const siW = SW - SM.left - SM.right;
+const siH = SH - SM.top  - SM.bottom;
+
+const xs = d3.scalePoint().domain(timeLabels).range([0, siW]).padding(0.05);
+const ys = d3.scaleLinear().domain([0, 20]).range([siH, 0]);
+const yTicksS = [0, 10, 20];
+const topTickS = yTicksS[yTicksS.length - 1];
+
+const gridEl = document.getElementById('sm-grid');
+
+groupKeys.forEach((k, gi) => {
+  const cell = document.createElement('div');
+  cell.className = 'sm-cell';
+  cell.innerHTML = `<div class="sm-label">${groupNames[k]}</div>`;
+  gridEl.appendChild(cell);
+
+  const svgS = d3.select(cell)
+    .append('svg').attr('width', SW).attr('height', SH)
+    .append('g').attr('transform', `translate(${SM.left},${SM.top})`);
+
+  const isLeft = gi === 0;
+
+  svgS.append('g').selectAll('line').data(yTicksS.slice(1)).join('line')
+    .attr('x1', d => (d === topTickS && isLeft) ? 24 : 0)
+    .attr('x2',siW).attr('y1',d=>ys(d)).attr('y2',d=>ys(d))
+    .style('stroke','#aaaaaa').style('stroke-dasharray','2').style('stroke-opacity',0.4);
+
+  svgS.append('line').attr('x1',0).attr('x2',siW).attr('y1',ys(0)).attr('y2',ys(0))
+    .style('stroke','#363636').style('stroke-opacity',0.4);
+
+  svgS.append('g')
+    .call(d3.axisLeft(ys).tickValues(yTicksS).tickSize(0).tickPadding(4)
+      .tickFormat(isLeft ? d => d3.format(',')(d * 1000) : ''))
+    .call(a => a.select('.domain').remove())
+    .selectAll('text').style('font-size','12px').style('fill','#999999')
+    .style('font-family',"Pretendard,'Noto Sans KR',sans-serif").style('text-anchor','end');
+
+  if (isLeft) {
+    svgS.append('text')
+      .attr('x', -6).attr('y', ys(20)).attr('dy', '0.32em').attr('dx', 2)
+      .style('text-anchor', 'start').style('font-size','11px').style('fill','#999999')
+      .style('font-family',"Pretendard,'Noto Sans KR',sans-serif").text('TWh');
+  }
+
+  svgS.append('g').attr('transform',`translate(0,${siH})`)
+    .call(d3.axisBottom(xs).tickValues(['2000','2012','2025']).tickSize(4).tickPadding(5))
+    .call(a => a.select('.domain').remove())
+    .call(a => a.selectAll('.tick line').style('stroke','#aaaaaa'))
+    .selectAll('text').style('font-size','12px').style('fill','#999999')
+    .style('font-family',"Pretendard,'Noto Sans KR',sans-serif");
+
+  const vals = rawData.map(d => d[k]);
+
+  const areaS = d3.area().x((d,i) => xs(timeLabels[i])).y0(ys(0)).y1(d => ys(d)).curve(d3.curveMonotoneX);
+  const lineS = d3.line().x((d,i) => xs(timeLabels[i])).y(d => ys(d)).curve(d3.curveMonotoneX);
+
+  svgS.append('path').datum(vals).attr('fill', colors[k]).attr('fill-opacity', 0.82).attr('d', areaS);
+
+  const pathS = svgS.append('path').datum(vals)
+    .attr('fill','none').attr('stroke', colors[k]).attr('stroke-width', 1.5).attr('d', lineS);
+
+  const len = pathS.node().getTotalLength();
+  pathS.attr('stroke-dasharray',`${len} ${len}`).attr('stroke-dashoffset', len)
+    .transition().duration(800).delay(gi * 80).ease(d3.easeCubicInOut)
+    .attr('stroke-dashoffset', 0);
+});
+</script>
+</body>
+</html>
