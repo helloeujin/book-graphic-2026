@@ -58,7 +58,7 @@
   );
 
   /* ── 치수 ── */
-  const W  = 236, H = 220;   // H 살짝 높여서 legend 공간 확보
+  const W  = 236, H = 220;
   const M  = { top: 6, right: 10, bottom: 50, left: 48 };
   const iW = W - M.left - M.right;
   const iH = H - M.top  - M.bottom;
@@ -71,12 +71,11 @@
   const xScale = d3.scaleBand().domain(xLabels).range([0, iW]).padding(0.06);
   const yScale = d3.scaleBand().domain(yLabels).range([0, iH]).padding(0.06);
 
-  const colorScale = d3.scaleDiverging()
-    .domain([-5, 0, 15])
-    .interpolator(t => t < 0.5
-      ? d3.interpolateRgb('#999999', '#f4f4f4')(t * 2)
-      : d3.interpolateRgb('#f4f4f4', '#6565FF')((t - 0.5) * 2)
-    );
+  // Sequential: #6565FF (프로젝트 accent)
+  // 낮은 값 → #ebebff (연한 tint), 높은 값 → #6565FF
+  const colorScale = d3.scaleSequential()
+    .domain([0, 15])
+    .interpolator(d3.interpolateRgb('#c4c4ff', '#6565FF'));
 
   /* ── X축 ── */
   g.append('g').attr('transform', `translate(0,${iH})`)
@@ -107,7 +106,7 @@
       .attr('width',  xScale.bandwidth())
       .attr('height', yScale.bandwidth())
       .attr('rx', 2)
-      .attr('fill', '#f4f4f4')
+      .attr('fill', '#c4c4ff')
       .style('cursor', 'pointer')
       .on('mouseover', function(event, d) {
         d3.select(this).attr('opacity', 0.75);
@@ -128,19 +127,17 @@
     .attr('fill', d => colorScale(d.value));
 
   /* ── Gradient bar legend ── */
-  const legendW  = iW;
-  const legendH  = 8;
-  const legendY  = iH + 30;   // X축 아래
+  const legendW = iW;
+  const legendH = 8;
+  const legendY = iH + 30;
 
   const defs = svg.append('defs');
   const gradId = 'legend-grad';
   const grad = defs.append('linearGradient').attr('id', gradId)
     .attr('x1', '0%').attr('x2', '100%');
-  // 0의 위치: -5~15 범위에서 5/20 = 25%
-  const zeroPos = 5 / 20;
-  grad.append('stop').attr('offset',              '0%').attr('stop-color', '#999999');
-  grad.append('stop').attr('offset', `${zeroPos * 100}%`).attr('stop-color', '#f4f4f4');
-  grad.append('stop').attr('offset',            '100%').attr('stop-color', '#6565FF');
+
+  grad.append('stop').attr('offset',   '0%').attr('stop-color', '#c4c4ff');
+  grad.append('stop').attr('offset', '100%').attr('stop-color', '#6565FF');
 
   const lg = g.append('g').attr('transform', `translate(0,${legendY})`);
 
@@ -153,14 +150,6 @@
   lg.append('text')
     .attr('x', 0).attr('y', legendH + 12)
     .attr('text-anchor', 'start')
-    .style('font-size', '11px').style('fill', '#999999')
-    .style('font-family', "Pretendard,'Noto Sans KR',sans-serif")
-    .text('-5');
-
-  // 0 (25% 위치)
-  lg.append('text')
-    .attr('x', legendW * zeroPos).attr('y', legendH + 12)
-    .attr('text-anchor', 'middle')
     .style('font-size', '11px').style('fill', '#999999')
     .style('font-family', "Pretendard,'Noto Sans KR',sans-serif")
     .text('0');

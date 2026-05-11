@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>발산형 스케일 히트맵</title>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family:'Pretendard','Noto Sans KR',sans-serif;
+      background:#fff;
+      padding:40px 20px;
+    }
+    .panel { display:inline-block; }
+    .panel-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: #363636;
+      padding-bottom: 8px;
+      margin-bottom: 10px;
+      border-bottom: 1px solid #ddd;
+    }
+    .tooltip {
+      position: absolute;
+      pointer-events: none;
+      background: rgba(255,255,255,0.95);
+      border: 1px solid #c6c6c6;
+      border-radius: 4px;
+      padding: 10px 12px;
+      font-size: 13px;
+      color: #636363;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      display: none;
+    }
+    .tooltip strong {
+      display: block;
+      font-size: 14px;
+      font-weight: 600;
+      color: #454545;
+      margin-bottom: 2px;
+    }
+    .source {
+      font-size: 13px;
+      line-height: 17px;
+      color: #777;
+      margin-top: 10px;
+    }
+    svg text { font-family:'Pretendard','Noto Sans KR',sans-serif; }
+  </style>
+</head>
+<body>
+
+<div class="panel">
+  <p class="panel-label">발산형 스케일</p>
+  <div id="chart"></div>
+  <p class="source">예시 데이터 · 기준: 주간 평균 50건</p>
+</div>
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+const FONT = "Pretendard,'Noto Sans KR',sans-serif";
+
+const days  = ['월', '화', '수', '목', '금'];
+const times = ['9시', '10시', '11시', '12시', '13시', '14시', '15시', '16시', '17시', '18시'];
+
+const raw = {
+  '월': [85, 92, 78, 45, 32, 38, 52, 58, 44, 30],
+  '화': [50, 64, 56, 40, 28, 34, 46, 52, 40, 28],
+  '수': [44, 58, 52, 38, 24, 30, 48, 50, 36, 25],
+  '목': [46, 60, 55, 36, 28, 34, 52, 62, 52, 38],
+  '금': [54, 66, 60, 40, 28, 36, 75, 86, 92, 80],
+};
+
+const AVG = 50;
+
+const data = [];
+days.forEach(day => {
+  times.forEach((time, ti) => {
+    data.push({ day, time, value: raw[day][ti] });
+  });
+});
+
+const W = 480, H = 200;
+const M = { top: 10, right: 16, bottom: 40, left: 40 };
+const iW = W - M.left - M.right;
+const iH = H - M.top  - M.bottom;
+
+// 발산형 — 낮음=파랑, 평균=연회색, 높음=highlight
+const colorScale = d3.scaleDiverging()
+  .domain([0, AVG, 100])
+  .interpolator(d3.interpolateRgbBasis([
+    '#636363',  // gray-500 (매우 낮음 — 한산)
+    '#a4a4a4',  // gray-300
+    '#eaeaea',  // gray-100 (기준: 평균)
+    '#a8a8ff',
+    '#6565FF',  // highlight (높음 — 바쁨)
+    '#4040cc',
+  ]));
+
+const svg = d3.select('#chart').append('svg')
+  .attr('width', W + M.left + M.right)
+  .attr('height', H + M.top + M.bottom + 28)
+  .append('g').attr('transform', `translate(${M.left},${M.top})`);
+
+const x = d3.scaleBand().domain(times).range([0, iW]).padding(0.06);
+const y = d3.scaleBand().domain(days).range([0, iH]).padding(0.08);
+
+svg.append('g').attr('transform', `translate(0,${iH})`)
+  .call(d3.axisBottom(x).tickSize(0).tickPadding(8))
+  .call(a => a.select('.domain').remove())
+  .selectAll('text')
+    .style('font-size', '13px').style('fill', '#999999').style('font-family', FONT);
+
+svg.append('g')
+  .call(d3.axisLeft(y).tickSize(0).tickPadding(8))
+  .call(a => a.select('.domain').remove())
+  .selectAll('text')
+    .style('font-size', '13px').style('fill', '#636363').style('font-family', FONT);
+
+const tooltip = document.getElementById('tooltip');
+
+svg.selectAll('.cell').data(data).join('rect')
+  .attr('class', 'cell')
+  .attr('x', d => x(d.time)).attr('y', d => y(d.day))
+  .attr('width', x.bandwidth()).attr('height', y.bandwidth())
+  .attr('rx', 3).attr('fill', d => colorScale(d.value))
+  .on('mouseover', function(event, d) {
+    const diff = d.value - AVG;
+    const sign = diff >= 0 ? '+' : '';
+    tooltip.style.display = 'block';
+    tooltip.innerHTML = `<strong>${d.day}요일 ${d.time}</strong>${d.value}건 (평균 대비 ${sign}${diff}건)`;
+  })
+  .on('mousemove', function(event) {
+    tooltip.style.left = (event.pageX + 12) + 'px';
+    tooltip.style.top  = (event.pageY - 28) + 'px';
+  })
+  .on('mouseout', () => tooltip.style.display = 'none');
+
+// 발산형 범례
+const legendW = 160, legendH = 8;
+const legendX = (iW - legendW) / 2;
+const legendY = iH + 30;
+
+const defs = svg.append('defs');
+const grad = defs.append('linearGradient').attr('id', 'divGrad');
+[0, 25, 50, 75, 100].forEach(v => {
+  grad.append('stop').attr('offset', `${v}%`).attr('stop-color', colorScale(v));
+});
+
+svg.append('rect')
+  .attr('x', legendX).attr('y', legendY)
+  .attr('width', legendW).attr('height', legendH)
+  .attr('rx', 2).attr('fill', 'url(#divGrad)');
+
+svg.append('line')
+  .attr('x1', legendX + legendW / 2).attr('x2', legendX + legendW / 2)
+  .attr('y1', legendY - 2).attr('y2', legendY + legendH + 2)
+  .style('stroke', '#636363').style('stroke-width', 1);
+
+[['한산', 'start', 0], ['평균', 'middle', legendW / 2], ['바쁨', 'end', legendW]]
+  .forEach(([label, anchor, dx]) => {
+    svg.append('text')
+      .attr('x', legendX + dx).attr('y', legendY + legendH + 13)
+      .style('text-anchor', anchor)
+      .style('font-size', '12px').style('fill', '#999999').style('font-family', FONT)
+      .text(label);
+  });
+</script>
+</body>
+</html>
