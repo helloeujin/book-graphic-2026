@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>Y축 범위 비교 — 선 그래프</title>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family:'Pretendard','Noto Sans KR',sans-serif;
+      background:#fff;
+      padding:40px 20px;
+    }
+
+    .panels {
+      display: flex;
+      gap: 24px;
+      align-items: flex-start;
+    }
+    .panel {
+      padding: 16px 16px 28px 16px;
+      display: inline-block;
+    }
+
+    /* 비교 레이블 컴포넌트 */
+    .panel-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: #363636;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding-bottom: 8px;
+      margin-bottom: 14px;
+      border-bottom: 1px solid #ddd;
+    }
+    .badge {
+      font-size: 12px;
+      font-weight: 700;
+      border-radius: 4px;
+      padding: 3px 10px;
+      color: #fff;
+      letter-spacing: 0.03em;
+      white-space: nowrap;
+    }
+    .badge-worse  { background: #b8351b; }
+    .badge-better { background: #37760a; }
+
+    .source {
+      font-size: 13px;
+      line-height: 17px;
+      color: #777;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+<div class="panels">
+
+  <!-- 왼쪽: Y축 0 시작 -->
+  <div class="panel">
+    <p class="panel-label">
+      <span class="badge badge-worse">Worse</span>
+      데이터 범위와 맞지 않는 Y축
+    </p>
+    <div id="chart-zero"></div>
+    <p class="source">예시 데이터 (기온, °C)</p>
+  </div>
+
+  <!-- 오른쪽: Y축 범위 조정 -->
+  <div class="panel">
+    <p class="panel-label">
+      <span class="badge badge-better">Better</span>
+      데이터 범위에 맞는 Y축
+    </p>
+    <div id="chart-fit"></div>
+    <p class="source">예시 데이터 (기온, °C)</p>
+  </div>
+
+</div>
+
+<script>
+// 서울 월평균 기온 (1~12월, 평년값 근사)
+const months = ['1','2','3','4','5','6','7','8','9','10','11','12'];
+const temps  = [-2, 1, 6, 13, 19, 23, 27, 28, 22, 15, 7, 1];
+const data   = months.map((m, i) => ({ month: m, temp: temps[i] }));
+
+const LINE_COLOR = '#6565FF';
+const W = 236, H = 200;
+const M = { top: 6, right: 24, bottom: 30, left: 36 };
+const iW = W - M.left - M.right;  // 176
+const iH = H - M.top  - M.bottom; // 164
+
+function drawLine(containerId, yDomain, yTicks) {
+  const svg = d3.select(containerId).append('svg')
+    .attr('width', W).attr('height', H)
+    .attr('xmlns', 'http://www.w3.org/2000/svg');
+  const g = svg.append('g').attr('transform', `translate(${M.left},${M.top})`);
+
+  const x = d3.scalePoint()
+    .domain(months)
+    .range([0, iW])
+    .padding(0.1);
+
+  const y = d3.scaleLinear()
+    .domain(yDomain)
+    .range([iH, 0]);
+
+  const topTick = yTicks[yTicks.length - 1];
+
+  // 수평 그리드
+  g.append('g').selectAll('line.grid').data(yTicks).join('line')
+    .attr('class', 'grid')
+    .attr('x1', d => d === topTick ? 12 : 0).attr('x2', iW)
+    .attr('y1', d => y(d)).attr('y2', d => y(d))
+    .style('stroke', d => d === 0 ? '#363636' : '#aaaaaa')
+    .style('stroke-dasharray', d => d === 0 ? '0' : '2')
+    .style('stroke-opacity', 0.4);
+
+  // Y축 — 모든 tick: 숫자° (right-aligned), 맨 위 tick에만 별도로 C 추가
+  g.append('g')
+    .call(
+      d3.axisLeft(y)
+        .tickValues(yTicks)
+        .tickSize(0)
+        .tickPadding(6)
+        .tickFormat(d => `${d}°`)
+    )
+    .call(a => a.select('.domain').remove())
+    .selectAll('text')
+      .style('font-size', '12px')
+      .style('fill', '#999999')
+      .style('font-family', "Pretendard,'Noto Sans KR',sans-serif")
+      .style('text-anchor', 'end');
+
+  // 맨 위 tick 옆에 "C" 별도 배치 (° 바로 오른쪽, text-anchor: start)
+  g.append('text')
+    .attr('x', -6)
+    .attr('y', y(topTick))
+    .attr('dy', '0.32em')
+    .attr('dx', 2)
+    .style('text-anchor', 'start')
+    .style('font-size', '12px')
+    .style('fill', '#999999')
+    .style('font-family', "Pretendard,'Noto Sans KR',sans-serif")
+    .text('C');
+
+  // X축 — 1, 4, 7, 10월만 표시
+  const xTickVals = ['1', '4', '7', '10'];
+  g.append('g')
+    .attr('transform', `translate(0,${iH})`)
+    .call(
+      d3.axisBottom(x)
+        .tickValues(xTickVals)
+        .tickSize(4)
+        .tickPadding(6)
+        .tickFormat(d => `${d}월`)
+    )
+    .call(a => a.select('.domain').remove())
+    .selectAll('text')
+      .style('font-size', '12px')
+      .style('fill', '#999999')
+      .style('font-family', "Pretendard,'Noto Sans KR',sans-serif");
+
+  // tick line 색상
+  g.selectAll('.tick line')
+    .style('stroke', '#999999');
+
+  // 선
+  const line = d3.line()
+    .x(d => x(d.month))
+    .y(d => y(d.temp))
+    .curve(d3.curveMonotoneX);
+
+  const path = g.append('path')
+    .datum(data)
+    .attr('fill', 'none')
+    .attr('stroke', LINE_COLOR)
+    .attr('stroke-width', 2)
+    .attr('d', line);
+
+  // 드로우 애니메이션
+  const len = path.node().getTotalLength();
+  path
+    .attr('stroke-dasharray', `${len} ${len}`)
+    .attr('stroke-dashoffset', len)
+    .transition().duration(800).ease(d3.easeCubicInOut)
+    .attr('stroke-dashoffset', 0);
+}
+
+// Worse: Y축 -20~60, 눈금 [-20, 0, 20, 40, 60]
+drawLine('#chart-zero', [-42, 62], [-40, -20, 0, 20, 40, 60]);
+
+// Better: Y축 -10~30, 눈금 [-10, 0, 10, 20, 30]
+drawLine('#chart-fit',  [-12, 32], [-10, 0, 10, 20, 30]);
+</script>
+</body>
+</html>

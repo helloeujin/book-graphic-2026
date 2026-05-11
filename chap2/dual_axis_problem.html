@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>이중축 문제</title>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family:'Pretendard','Noto Sans KR',sans-serif;
+      background:#fff;
+      padding:40px 20px;
+    }
+
+    .section-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: #363636;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding-bottom: 8px;
+      margin-bottom: 10px;
+      border-bottom: 1px solid #ddd;
+    }
+    .badge {
+      font-size: 12px;
+      font-weight: 700;
+      border-radius: 4px;
+      padding: 3px 10px;
+      color: #fff;
+      letter-spacing: 0.03em;
+      white-space: nowrap;
+      background: #b8351b;
+    }
+
+    .legend {
+      display: flex;
+      gap: 14px;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 13px;
+      color: #363636;
+    }
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .chart-grid {
+      display: grid;
+      grid-template-columns: repeat(2, auto);
+      gap: 28px 32px;
+    }
+
+    .chart-item { display: inline-block; }
+
+    .caption {
+      font-size: 12px;
+      line-height: 17px;
+      color: #636363;
+      margin-top: 4px;
+      max-width: 220px;
+    }
+    .g1 { color: #6565FF; font-weight: 600; }
+    .g2 { color: #888888; font-weight: 600; }
+  </style>
+</head>
+<body>
+
+<div class="section-label">
+  <span class="badge">Don't</span>
+  이중축 — 같은 데이터가 네 가지로 읽힌다
+</div>
+
+<div class="legend">
+  <div class="legend-item">
+    <span class="legend-dot" style="background:#6565FF;"></span>그룹 1
+  </div>
+  <div class="legend-item">
+    <span class="legend-dot" style="background:#888888;"></span>그룹 2
+  </div>
+</div>
+
+<div class="chart-grid">
+  <div class="chart-item">
+    <div id="c1"></div>
+    <p class="caption">두 지표 모두 변화 없이 안정적으로 보임</p>
+  </div>
+  <div class="chart-item">
+    <div id="c2"></div>
+    <p class="caption"><span class="g1">그룹 1</span>만 급증하고, <span class="g2">그룹 2</span>는 변화 없어 보임</p>
+  </div>
+  <div class="chart-item">
+    <div id="c3"></div>
+    <p class="caption"><span class="g2">그룹 2</span>만 크게 변동해 보임</p>
+  </div>
+  <div class="chart-item">
+    <div id="c4"></div>
+    <p class="caption">두 지표가 함께 꾸준히 상승하는 것처럼 보임</p>
+  </div>
+</div>
+
+<script>
+const COLOR_A = '#6565FF';  // 매출
+const COLOR_B = '#888888';  // 영업이익률
+const FONT    = "Pretendard,'Noto Sans KR',sans-serif";
+
+// 같은 데이터 — 4개 차트 모두 이 데이터를 사용
+const dataA = [100,105,108,112,116,120,124,128,131,135]; // 매출 (억원)
+const dataB = [8.5,8.3,8.7,8.4,8.6,8.9,8.7,9.1,9.0,9.3]; // 영업이익률 (%)
+const n = dataA.length;
+
+const W = 220, H = 155;
+const M = { top:6, right:32, bottom:16, left:32 };
+const iW = W - M.left - M.right;
+const iH = H - M.top  - M.bottom;
+
+function drawDual(id, leftDomain, leftTicks, rightDomain, rightTicks) {
+  const svg = d3.select(id).append('svg')
+    .attr('width', W).attr('height', H)
+    .style('overflow', 'visible');
+  const g = svg.append('g').attr('transform', `translate(${M.left},${M.top})`);
+
+  const x  = d3.scaleLinear().domain([0, n - 1]).range([0, iW]);
+  const yL = d3.scaleLinear().domain(leftDomain).range([iH, 0]);
+  const yR = d3.scaleLinear().domain(rightDomain).range([iH, 0]);
+
+  // 수평 그리드 (왼쪽 축 기준)
+  g.selectAll('.gl').data(leftTicks).join('line')
+    .attr('x1', 0).attr('x2', iW)
+    .attr('y1', d => yL(d)).attr('y2', d => yL(d))
+    .style('stroke', '#aaaaaa').style('stroke-dasharray', '2').style('stroke-opacity', 0.4);
+
+  // X baseline
+  g.append('line')
+    .attr('x1', 0).attr('x2', iW)
+    .attr('y1', iH).attr('y2', iH)
+    .style('stroke', '#aaaaaa').style('stroke-opacity', 0.4);
+
+  // 왼쪽 Y축 (매출)
+  g.append('g')
+    .call(d3.axisLeft(yL).tickValues(leftTicks).tickSize(0).tickPadding(4))
+    .call(a => a.select('.domain').remove())
+    .selectAll('text')
+      .style('font-size', '11px').style('fill', COLOR_A)
+      .style('font-family', FONT).style('text-anchor', 'end');
+
+  // 오른쪽 Y축 (이익률)
+  g.append('g')
+    .attr('transform', `translate(${iW},0)`)
+    .call(d3.axisRight(yR).tickValues(rightTicks).tickSize(0).tickPadding(4))
+    .call(a => a.select('.domain').remove())
+    .selectAll('text')
+      .style('font-size', '11px').style('fill', COLOR_B)
+      .style('font-family', FONT).style('text-anchor', 'start');
+
+  // 선 A (매출)
+  const lineA = d3.line().x((d,i) => x(i)).y(d => yL(d)).curve(d3.curveMonotoneX);
+  const pathA = g.append('path').datum(dataA)
+    .attr('fill','none').attr('stroke', COLOR_A).attr('stroke-width', 2).attr('d', lineA);
+  animateLine(pathA);
+
+  // 선 B (이익률)
+  const lineB = d3.line().x((d,i) => x(i)).y(d => yR(d)).curve(d3.curveMonotoneX);
+  const pathB = g.append('path').datum(dataB)
+    .attr('fill','none').attr('stroke', COLOR_B).attr('stroke-width', 2).attr('d', lineB);
+  animateLine(pathB);
+
+  // 끝점 점 제거
+}
+
+function animateLine(path) {
+  const len = path.node().getTotalLength();
+  path.attr('stroke-dasharray', `${len} ${len}`).attr('stroke-dashoffset', len)
+    .transition().duration(800).ease(d3.easeCubicInOut).attr('stroke-dashoffset', 0);
+}
+
+// 같은 데이터, 4가지 Y축 조합
+// c1: 두 축 모두 넓게 → 둘 다 평평해 보임
+drawDual('#c1', [0, 300], [0, 150, 300], [0, 30],   [0, 15, 30]);
+
+// c2: 왼쪽만 좁게 → 매출만 급증해 보임
+drawDual('#c2', [90, 140], [90, 115, 140], [0, 30],  [0, 15, 30]);
+
+// c3: 오른쪽만 좁게 → 이익률만 크게 변동해 보임
+drawDual('#c3', [0, 300], [0, 150, 300], [8.0, 9.5], [8.0, 8.75, 9.5]);
+
+// c4: 두 축 모두 좁게 → 둘 다 함께 오르는 것처럼 보임
+drawDual('#c4', [90, 140], [90, 115, 140], [8.0, 9.5], [8.0, 8.75, 9.5]);
+</script>
+</body>
+</html>

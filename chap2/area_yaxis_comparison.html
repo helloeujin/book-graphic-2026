@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>면적 차트 Y축 비교</title>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family:'Pretendard','Noto Sans KR',sans-serif;
+      background:#fff;
+      padding:40px 20px;
+    }
+    .panels { display:flex; gap:24px; align-items:flex-start; }
+    .panel  { display:inline-block; }
+
+    .panel-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: #363636;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding-bottom: 8px;
+      margin-bottom: 22px;
+      border-bottom: 1px solid #ddd;
+    }
+    .badge {
+      font-size: 12px;
+      font-weight: 700;
+      border-radius: 4px;
+      padding: 3px 10px;
+      color: #fff;
+      letter-spacing: 0.03em;
+      white-space: nowrap;
+    }
+    .badge-worse  { background: #b8351b; }
+    .badge-better { background: #37760a; }
+  </style>
+</head>
+<body>
+<div class="panels">
+
+  <div class="panel">
+    <p class="panel-label">
+      <span class="badge badge-worse">Don't</span>
+      Y축 40에서 시작
+    </p>
+    <div id="chart-worse"></div>
+  </div>
+
+  <div class="panel">
+    <p class="panel-label">
+      <span class="badge badge-better">Do</span>
+      Y축 0에서 시작
+    </p>
+    <div id="chart-better"></div>
+  </div>
+
+</div>
+<script>
+// 월별 웹사이트 방문자 수 (1~12월)
+const months = ['1','2','3','4','5','6','7','8','9','10','11','12'];
+const values = [42, 45, 43.5, 48, 51, 49.5, 53, 56, 52.5, 55, 57.5, 60];
+const data   = months.map((m, i) => ({ month: m, value: values[i] }));
+
+const W = 236, H = 200;
+const M = { top: 6, right: 24, bottom: 30, left: 42 };
+const iW = W - M.left - M.right;
+const iH = H - M.top  - M.bottom;
+const FONT      = "Pretendard,'Noto Sans KR',sans-serif";
+const COLOR     = '#6565FF';
+const COLOR_FILL = 'rgba(101,101,255,0.12)';
+const commaFmt  = d3.format(',');
+
+function drawArea(containerId, yDomain, yTicks) {
+  const topTick = yTicks[yTicks.length - 1];
+
+  const svg = d3.select(containerId).append('svg')
+    .attr('width', W).attr('height', H);
+  const g = svg.append('g').attr('transform', `translate(${M.left},${M.top})`);
+
+  const x = d3.scalePoint().domain(months).range([0, iW]).padding(0.1);
+  const y = d3.scaleLinear().domain(yDomain).range([iH, 0]);
+
+  // 그리드
+  g.selectAll('.grid').data(yTicks).join('line')
+    .attr('x1', 0).attr('x2', iW)
+    .attr('y1', d => y(d)).attr('y2', d => y(d))
+    .style('stroke', d => d === 0 ? '#363636' : '#aaaaaa')
+    .style('stroke-dasharray', d => d === 0 ? '0' : '2')
+    .style('stroke-opacity', 0.4);
+
+  // Y축
+  g.append('g')
+    .call(
+      d3.axisLeft(y)
+        .tickValues(yTicks)
+        .tickSize(0)
+        .tickPadding(6)
+        .tickFormat(d => `${d}`)
+    )
+    .call(a => a.select('.domain').remove())
+    .selectAll('text')
+      .style('font-size', '12px').style('fill', '#999999')
+      .style('font-family', FONT).style('text-anchor', 'end');
+
+  // X축 — 1, 4, 7, 10월
+  g.append('g')
+    .attr('transform', `translate(0,${iH})`)
+    .call(
+      d3.axisBottom(x)
+        .tickValues(['1','4','7','10'])
+        .tickSize(4).tickPadding(6)
+        .tickFormat(d => `${d}월`)
+    )
+    .call(a => a.select('.domain').remove())
+    .selectAll('text')
+      .style('font-size', '12px').style('fill', '#999999').style('font-family', FONT);
+
+  g.selectAll('.tick line').style('stroke', '#999999');
+
+  // 면적 (fill)
+  const areaGen = d3.area()
+    .x(d => x(d.month))
+    .y0(y(yDomain[0]))   // 각 차트의 baseline
+    .y1(d => y(d.value))
+    .curve(d3.curveMonotoneX);
+
+  g.append('path').datum(data)
+    .attr('fill', COLOR_FILL)
+    .attr('d', areaGen);
+
+  // 선
+  const lineGen = d3.line()
+    .x(d => x(d.month))
+    .y(d => y(d.value))
+    .curve(d3.curveMonotoneX);
+
+  const path = g.append('path').datum(data)
+    .attr('fill', 'none')
+    .attr('stroke', COLOR)
+    .attr('stroke-width', 2)
+    .attr('d', lineGen);
+
+  const len = path.node().getTotalLength();
+  path.attr('stroke-dasharray', `${len} ${len}`).attr('stroke-dashoffset', len)
+    .transition().duration(800).ease(d3.easeCubicInOut).attr('stroke-dashoffset', 0);
+}
+
+// Worse: Y축 40에서 시작 → 면적 왜곡
+drawArea('#chart-worse', [40, 62], [40, 50, 60]);
+
+// Better: Y축 0에서 시작 → 면적 정직하게 표현
+drawArea('#chart-better', [0, 65], [0, 20, 40, 60]);
+</script>
+</body>
+</html>
