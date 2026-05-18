@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>누적 막대 기준선 비교</title>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family:'Pretendard','Noto Sans KR',sans-serif;
+      background:#fff;
+      padding:40px 20px;
+    }
+    .panels { display:flex; gap:24px; align-items:flex-start; }
+    .panel  { display:inline-block; }
+    .panel-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: #363636;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding-bottom: 8px;
+      margin-bottom: 14px;
+      border-bottom: 1px solid #ddd;
+    }
+    .badge {
+      font-size: 12px;
+      font-weight: 700;
+      border-radius: 4px;
+      padding: 3px 10px;
+      color: #fff;
+      letter-spacing: 0.03em;
+      white-space: nowrap;
+    }
+    .badge-worse  { background: #b8351b; }
+    .badge-better { background: #37760a; }
+    .legend {
+      display: flex;
+      gap: 14px;
+      margin-top: 12px;
+      padding-left: 2px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 12px;
+      color: #636363;
+      font-family: 'Pretendard','Noto Sans KR',sans-serif;
+    }
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .source {
+      font-size: 12px;
+      color: #999;
+      margin-top: 10px;
+      font-family: 'Pretendard','Noto Sans KR',sans-serif;
+    }
+  </style>
+</head>
+<body>
+
+<div class="panels">
+
+  <!-- Worse: 현재 순서 (생산가능이 중간) -->
+  <div class="panel">
+    <p class="panel-label">
+      <span class="badge badge-worse">Worse</span>
+      비교 항목이 중간에 위치
+    </p>
+    <div id="chart-worse"></div>
+  </div>
+
+  <!-- Better: 생산가능을 맨 아래로 -->
+  <div class="panel">
+    <p class="panel-label">
+      <span class="badge badge-better">Better</span>
+      비교 항목을 맨 아래(기준선)에 배치
+    </p>
+    <div id="chart-better"></div>
+  </div>
+
+</div>
+
+<div class="legend">
+  <div class="legend-item">
+    <div class="legend-dot" style="background:#888888"></div>
+    유소년 (0~14세)
+  </div>
+  <div class="legend-item">
+    <div class="legend-dot" style="background:#6565FF"></div>
+    생산가능 (15~64세)
+  </div>
+  <div class="legend-item">
+    <div class="legend-dot" style="background:#bbbbbb"></div>
+    고령 (65세+)
+  </div>
+</div>
+<p class="source">출처: <a href="https://kosis.kr/statHtml/statHtml.do?orgId=101&tblId=DT_1IN1503" target="_blank" style="color:#999;text-decoration:underline;">통계청 인구총조사 2024</a></p>
+
+<script>
+const FONT = "Pretendard,'Noto Sans KR',sans-serif";
+const W = 236, H = 200;
+const M = { top: 6, right: 12, bottom: 28, left: 36 };
+const iW = W - M.left - M.right;
+const iH = H - M.top  - M.bottom;
+
+// 2024 인구총조사 실측값 (%)
+// values: [유소년(0~14), 생산가능(15~64), 고령(65+)]
+const rawData = [
+  { region: '서울', values: [8.6,  72.2, 19.2] },
+  { region: '경기', values: [11.5, 72.2, 16.3] },
+  { region: '부산', values: [9.5,  66.9, 23.6] },
+  { region: '강원', values: [9.6,  65.8, 24.6] },
+];
+
+const regions = rawData.map(d => d.region);
+// index → color: 0=유소년, 1=생산가능, 2=고령
+const colorMap = { 0: '#888888', 1: '#6565FF', 2: '#bbbbbb' };
+
+function drawBar(containerId, stackKeys, clipSuffix) {
+  const svg = d3.select(containerId).append('svg').attr('width', W).attr('height', H);
+  const g   = svg.append('g').attr('transform', `translate(${M.left},${M.top})`);
+
+  const x = d3.scaleBand().domain(regions).range([0, iW]).padding(0.3);
+  const y = d3.scaleLinear().domain([0, 100]).range([iH, 0]);
+  const bw = Math.round(x.bandwidth());
+
+  const yTicks  = [0, 25, 50, 75, 100];
+  const topTick = 100;
+
+  // 그리드 — zero 제외한 점선만 (zero line은 막대 위에 별도 렌더링)
+  g.selectAll('.grid').data(yTicks.filter(d => d !== 0)).join('line')
+    .attr('class', 'grid')
+    .attr('x1', d => d === topTick ? 12 : 0)
+    .attr('x2', iW)
+    .attr('y1', d => y(d)).attr('y2', d => y(d))
+    .style('stroke',          '#aaaaaa')
+    .style('stroke-dasharray','2')
+    .style('stroke-opacity',  0.4);
+
+  // Y축
+  g.append('g')
+    .call(
+      d3.axisLeft(y)
+        .tickValues(yTicks)
+        .tickSize(0)
+        .tickPadding(6)
+        .tickFormat(d => `${d}`)
+    )
+    .call(a => a.select('.domain').remove())
+    .selectAll('text')
+      .style('font-size', '11px').style('fill', '#999999')
+      .style('font-family', FONT).style('text-anchor', 'end');
+
+  // 단위 "%"
+  g.append('text')
+    .attr('x', -6).attr('y', y(topTick))
+    .attr('dy', '0.32em').attr('dx', 1)
+    .style('text-anchor', 'start').style('font-size', '11px')
+    .style('fill', '#999999').style('font-family', FONT)
+    .text('%');
+
+  // X축
+  g.append('g')
+    .attr('transform', `translate(0,${iH})`)
+    .call(d3.axisBottom(x).tickSize(0).tickPadding(6))
+    .call(a => a.select('.domain').remove())
+    .selectAll('text')
+      .style('font-size', '11px').style('fill', '#636363').style('font-family', FONT);
+
+  // 스택 계산 — stackKeys 순서로 쌓음
+  const stack   = d3.stack().keys(stackKeys).value((d, k) => d.values[k]);
+  const stacked = stack(rawData);
+
+  // clipPath 애니메이션 (아래→위)
+  const clipId = `clip-${clipSuffix}`;
+  const clipRect = svg.append('defs')
+    .append('clipPath').attr('id', clipId)
+    .append('rect')
+      .attr('x', 0).attr('y', M.top + iH)
+      .attr('width', W).attr('height', 0);
+
+  clipRect.transition().duration(800).ease(d3.easeCubicInOut)
+    .attr('y', M.top).attr('height', iH);
+
+  // 막대
+  stacked.forEach(layer => {
+    const key = layer.key; // 원래 데이터 인덱스
+    g.selectAll(null).data(layer).join('rect')
+      .attr('x',            d => Math.round(x(d.data.region)))
+      .attr('y',            d => y(d[1]))
+      .attr('width',        bw)
+      .attr('height',       d => Math.max(0, y(d[0]) - y(d[1])))
+      .attr('fill',         colorMap[key])
+      .attr('stroke',       '#fff')
+      .attr('stroke-width', 1)
+      .attr('clip-path',    `url(#${clipId})`);
+  });
+
+  // zero line — 막대 위에 렌더링 (SVG 레이어 최상단)
+  g.append('line')
+    .attr('x1', 0).attr('x2', iW)
+    .attr('y1', y(0)).attr('y2', y(0))
+    .style('stroke', '#363636')
+    .style('stroke-dasharray', '0')
+    .style('stroke-opacity', 0.4);
+}
+
+// Worse: 기존 순서 (유소년→생산가능→고령)
+drawBar('#chart-worse', [0, 1, 2], 'worse');
+
+// Better: 생산가능 맨 아래 (생산가능→유소년→고령)
+drawBar('#chart-better', [1, 0, 2], 'better');
+</script>
+</body>
+</html>

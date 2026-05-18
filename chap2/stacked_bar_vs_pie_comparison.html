@@ -182,15 +182,15 @@ const regions = rawData.map(d => d.region);
   const yTicks  = [0, 25, 50, 75, 100];
   const topTick = 100;
 
-  // 그리드 — 맨 위 tick은 "%" 레이블 너비만큼 오프셋 (12px)
-  g.selectAll('.grid').data(yTicks).join('line')
+  // 그리드 — zero 제외한 점선만 (zero line은 막대 위에 별도 렌더링)
+  g.selectAll('.grid').data(yTicks.filter(d => d !== 0)).join('line')
     .attr('class', 'grid')
     .attr('x1', d => d === topTick ? 12 : 0)
     .attr('x2', iW)
     .attr('y1', d => y(d)).attr('y2', d => y(d))
-    .style('stroke',          d => d === 0 ? '#363636' : '#aaaaaa')
-    .style('stroke-dasharray',d => d === 0 ? '0' : '2')
-    .style('stroke-opacity', 0.4);
+    .style('stroke',          '#aaaaaa')
+    .style('stroke-dasharray','2')
+    .style('stroke-opacity',  0.4);
 
   // Y축 — 숫자만
   g.append('g')
@@ -253,13 +253,23 @@ const regions = rawData.map(d => d.region);
   // 막대 그리기
   stacked.forEach((layer, j) => {
     g.selectAll(null).data(layer).join('rect')
-      .attr('x',      d => Math.round(x(d.data.region)))
-      .attr('y',      d => y(d[1]))
-      .attr('width',  bw)
-      .attr('height', d => Math.max(0, y(d[0]) - y(d[1])))
-      .attr('fill',   colors[j])
-      .attr('clip-path', `url(#${clipId})`);
+      .attr('x',            d => Math.round(x(d.data.region)))
+      .attr('y',            d => y(d[1]))
+      .attr('width',        bw)
+      .attr('height',       d => Math.max(0, y(d[0]) - y(d[1])))
+      .attr('fill',         colors[j])
+      .attr('stroke',       '#fff')
+      .attr('stroke-width', 1)
+      .attr('clip-path',    `url(#${clipId})`);
   });
+
+  // zero line — 막대 위에 렌더링 (SVG 레이어 최상단)
+  g.append('line')
+    .attr('x1', 0).attr('x2', iW)
+    .attr('y1', y(0)).attr('y2', y(0))
+    .style('stroke', '#363636')
+    .style('stroke-dasharray', '0')
+    .style('stroke-opacity', 0.4);
 }
 </script>
 </body>
