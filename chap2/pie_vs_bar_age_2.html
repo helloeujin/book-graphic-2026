@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>파이 vs 가로 막대 — 연령대별 인구 비중</title>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Pretendard','Noto Sans KR',sans-serif; background:#fff; padding:40px 20px; }
+
+    .panels { display:flex; gap:40px; align-items:flex-start; }
+    .panel  { padding:16px; display:inline-block; }
+
+    .panel-label {
+      font-size:13px; font-weight:500; color:#363636;
+      display:flex; align-items:center; gap:8px;
+      padding-bottom:8px; margin-bottom:14px;
+      border-bottom:1px solid #ddd;
+    }
+    .badge {
+      font-size:12px; font-weight:700;
+      border-radius:4px; padding:3px 10px;
+      color:#fff; letter-spacing:0.03em; flex-shrink:0;
+    }
+    .badge-worse  { background:#b8351b; }
+    .badge-better { background:#37760a; }
+
+    .source {
+      font-size:13px; line-height:17px; color:#777; margin-top:8px;
+    }
+    .source a { color:#777; text-decoration:underline; }
+  </style>
+</head>
+<body>
+<div class="panels">
+
+  <!-- Worse: 파이 차트 -->
+  <div class="panel">
+    <p class="panel-label"><span class="badge badge-worse">Worse</span>파이 차트</p>
+    <div id="chart-pie"></div>
+    <p class="source">출처: <a href="https://bigdata.yongsan.go.kr/usr/index.do" target="_blank">행정안전부 주민등록 인구통계</a></p>
+  </div>
+
+  <!-- Better: 가로 막대 차트 -->
+  <div class="panel">
+    <p class="panel-label"><span class="badge badge-better">Better</span>가로 막대 차트</p>
+    <div id="chart-bar"></div>
+    <p class="source">출처: <a href="https://bigdata.yongsan.go.kr/usr/index.do" target="_blank">행정안전부 주민등록 인구통계</a></p>
+  </div>
+
+</div>
+
+<script>
+const data = [
+  { label:'10세 미만', value:5.0  },
+  { label:'10대',      value:6.3  },
+  { label:'20대',      value:13.4 },
+  { label:'30대',      value:18.1 },
+  { label:'40대',      value:14.4 },
+  { label:'50대',      value:16.0 },
+  { label:'60대',      value:14.0 },
+  { label:'70대',      value:7.8  },
+  { label:'80대',      value:4.3  },
+  { label:'90대',      value:0.7  },
+  { label:'100세 이상',value:0.0  },
+];
+
+/* 파이 색상 — 단일 gray, 10세 미만만 강조 */
+const pieColors = data.map(d =>
+  d.label === '10세 미만' ? '#6565FF' : '#c6c6c6'
+);
+
+/* ═══════════════ 파이 차트 ═══════════════ */
+(function() {
+  const W = 360, H = 295;
+  const cx = W / 2, cy = 148;
+  const R = 88, innerR = 0;
+
+  const svg = d3.select('#chart-pie').append('svg')
+    .attr('width', W).attr('height', H).attr('xmlns','http://www.w3.org/2000/svg');
+
+  const pie = d3.pie().value(d => d.value).sort(null);
+  const arc = d3.arc().innerRadius(innerR).outerRadius(R);
+
+  const g = svg.append('g').attr('transform', `translate(${cx},${cy})`);
+
+  const arcs = pie(data);
+
+  /* 조각 */
+  g.selectAll('path').data(arcs).join('path')
+    .attr('fill', (_, i) => pieColors[i])
+    .attr('stroke', '#fff')
+    .attr('stroke-width', 1.5)
+    .attr('d', arc);
+
+  /* direct annotation — 레이블 + 리더 라인 */
+  const LABEL_R = R + 18;  /* 꺾이는 지점 반지름 */
+  const TEXT_R  = R + 22;  /* 텍스트 시작 반지름 */
+
+  /* 특정 레이블 y 오프셋 */
+  const yOffsets = {
+    '100세 이상': -22,
+    '90대':       -22,
+    '10세 미만':   -8,
+  };
+
+  arcs.forEach(d => {
+    const midAngle = (d.startAngle + d.endAngle) / 2;
+    const sin = Math.sin(midAngle), cos = Math.cos(midAngle);
+
+    const x1 = (R + 2) * sin;
+    const y1 = -(R + 2) * cos;
+    const x2 = LABEL_R * sin;
+    const y2 = -LABEL_R * cos;
+    const x3 = TEXT_R * sin;
+    const y3 = -TEXT_R * cos;
+    const isRight = sin >= 0;
+    const yOff = yOffsets[d.data.label] || 0;
+
+    g.append('polyline')
+      .attr('points', `${x1},${y1} ${x2},${y2} ${isRight ? x3+18 : x3-18},${y3 + yOff}`)
+      .attr('fill','none')
+      .attr('stroke','#bbbbbb')
+      .attr('stroke-width', 0.8);
+
+    const isHighlight = d.data.label === '10세 미만';
+    g.append('text')
+      .attr('x', isRight ? x3 + 22 : x3 - 22)
+      .attr('y', y3 + yOff)
+      .attr('text-anchor', isRight ? 'start' : 'end')
+      .attr('dominant-baseline','central')
+      .attr('font-size','10.5px')
+      .attr('fill', isHighlight ? '#6565FF' : '#636363')
+      .attr('font-weight', isHighlight ? '700' : '400')
+      .attr('font-family',"Pretendard,'Noto Sans KR',sans-serif")
+      .text(d.data.label);
+  });
+})();
+
+/* ═══════════════ 가로 막대 차트 ═══════════════ */
+(function() {
+  const W = 280, H = 295;
+  const M = { top:6, right:16, bottom:24, left:60 };
+  const iW = W - M.left - M.right;
+  const iH = H - M.top  - M.bottom;
+
+  const svg = d3.select('#chart-bar').append('svg')
+    .attr('width', W).attr('height', H).attr('xmlns','http://www.w3.org/2000/svg');
+  const g = svg.append('g').attr('transform', `translate(${M.left},${M.top})`);
+
+  const y = d3.scaleBand().domain(data.map(d=>d.label)).range([0, iH]).padding(0.25);
+  const x = d3.scaleLinear().domain([0, 20]).range([0, iW]);
+  const xTicks = [0, 5, 10, 15, 20];
+
+  /* 수직 그리드 */
+  g.append('g').selectAll('line').data(xTicks.slice(1)).join('line')
+    .attr('x1',d=>x(d)).attr('x2',d=>x(d)).attr('y1',0).attr('y2',iH)
+    .style('stroke','#aaaaaa').style('stroke-dasharray','2').style('stroke-opacity',0.4);
+
+  /* zero line */
+  g.append('line').attr('x1',x(0)).attr('x2',x(0)).attr('y1',0).attr('y2',iH)
+    .style('stroke','#363636').style('stroke-opacity',0.4);
+
+  /* X축 */
+  g.append('g').attr('transform',`translate(0,${iH})`)
+    .call(d3.axisBottom(x).tickValues(xTicks).tickFormat(d=>`${d}%`).tickSize(0).tickPadding(6))
+    .call(a=>a.select('.domain').remove())
+    .selectAll('text').style('font-size','12px').style('fill','#999')
+    .style('font-family',"Pretendard,'Noto Sans KR',sans-serif");
+
+  /* Y축 */
+  g.append('g').call(d3.axisLeft(y).tickSize(0).tickPadding(8))
+    .call(a=>a.select('.domain').remove())
+    .selectAll('text').style('font-size','12px').style('fill','#333')
+    .style('font-family',"Pretendard,'Noto Sans KR',sans-serif");
+
+  /* 막대 */
+  data.forEach(d => {
+    const color = d.label === '30대' ? '#6565FF' : '#a4a4a4';
+    g.append('rect')
+      .attr('y', y(d.label)).attr('height', y.bandwidth())
+      .attr('x', 0).attr('width', 0)
+      .attr('fill', color).attr('opacity', 0.85)
+      .transition().duration(800).ease(d3.easeCubicInOut)
+      .attr('width', x(d.value));
+  });
+})();
+</script>
+</body>
+</html>

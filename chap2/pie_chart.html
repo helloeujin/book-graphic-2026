@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>파이 차트</title>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Pretendard', 'Noto Sans KR', sans-serif; background: #fff; padding: 40px 20px; }
+    .container { display: inline-block; }
+    h1   { font-size: 17px; line-height: 22px; font-weight: 700; color: #363636; padding-bottom: 5px; }
+    .source { font-size: 13px; line-height: 17px; color: #777; margin-top: 8px; }
+    .tooltip {
+      position: fixed; background: rgba(255,255,255,0.95); border: 1px solid #c6c6c6;
+      border-radius: 4px; padding: 10px 12px; pointer-events: none; opacity: 0;
+      transition: opacity 0.15s; box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    .tooltip-title { font-size: 14px; font-weight: 600; color: #454545; }
+    .tooltip-body  { font-size: 13px; color: #636363; margin-top: 3px; }
+    #export-btn {
+      margin-top: 12px; padding: 8px 16px; font-size: 13px;
+      background: #000; color: #fff; border: none; border-radius: 4px;
+      cursor: pointer; font-family: 'Pretendard', sans-serif;
+    }
+    #export-btn:hover { background: #333; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div style="border: 1px solid #aaa; padding: 16px; display: inline-block;">
+    <h1>항목별 구성 비율</h1>
+    <div id="chart"></div>
+    <p class="source">출처: 예시 데이터</p>
+  </div><br>
+  <button id="export-btn">SVG 다운로드</button>
+</div>
+
+<div class="tooltip" id="tooltip">
+  <div class="tooltip-title" id="tt-title"></div>
+  <div class="tooltip-body"  id="tt-body"></div>
+</div>
+
+<script>
+  const data = [
+    { name: 'A', value: 38, color: '#c6c6c6' },
+    { name: 'B', value: 24, color: '#c6c6c6' },
+    { name: 'C', value: 20, color: '#c6c6c6' },
+    { name: 'D', value: 18, color: '#c6c6c6' }
+  ];
+
+  /* ── 치수 ── */
+  const W = 236, H = 200;
+  // 파이: 왼쪽 / 레전드: 오른쪽
+  const pieW   = 140;
+  const radius = 70;
+  const cx     = pieW / 2;
+  const cy     = H / 2;
+
+  const svg = d3.select('#chart').append('svg')
+    .attr('width', W).attr('height', H).attr('xmlns', 'http://www.w3.org/2000/svg');
+
+  /* ── 파이 제너레이터 ── */
+  const pie = d3.pie().value(d => d.value).sort(null);
+  const arc = d3.arc().innerRadius(0).outerRadius(radius);
+  const arcHover = d3.arc().innerRadius(0).outerRadius(radius + 4);
+
+  const tooltip = document.getElementById('tooltip');
+  const ttTitle = document.getElementById('tt-title');
+  const ttBody  = document.getElementById('tt-body');
+
+  const total = d3.sum(data, d => d.value);
+  const arcs  = pie(data);
+
+  const g = svg.append('g').attr('transform', `translate(${cx},${cy})`);
+
+  /* ── 슬라이스 ── */
+  const slices = g.selectAll('path')
+    .data(arcs).join('path')
+      .attr('fill', d => d.data.color)
+      .attr('stroke', '#fff')
+      .attr('stroke-width', 2)
+      .style('cursor', 'pointer')
+      .on('mouseover', function(event, d) {
+        d3.select(this).transition().duration(150).attr('d', arcHover);
+        ttTitle.textContent = `${d.data.name}`;
+        ttBody.textContent  = `${d.data.value} (${Math.round(d.data.value / total * 100)}%)`;
+        tooltip.style.opacity = '1';
+        tooltip.style.left = (event.clientX + 12) + 'px';
+        tooltip.style.top  = (event.clientY - 36) + 'px';
+      })
+      .on('mouseleave', function(event, d) {
+        d3.select(this).transition().duration(150).attr('d', arc);
+        tooltip.style.opacity = '0';
+      });
+
+  /* ── 드로우 애니메이션 ── */
+  slices
+    .attr('d', d => {
+      const start = { startAngle: d.startAngle, endAngle: d.startAngle };
+      return arc(start);
+    })
+    .transition().duration(800).ease(d3.easeCubicInOut)
+    .attrTween('d', function(d) {
+      const i = d3.interpolate({ startAngle: d.startAngle, endAngle: d.startAngle }, d);
+      return t => arc(i(t));
+    });
+
+  /* ── 슬라이스 안쪽 레이블 ── */
+  const labelArc = d3.arc().innerRadius(radius * 0.55).outerRadius(radius * 0.55);
+
+  g.selectAll('text.slice-label')
+    .data(arcs).join('text')
+      .attr('class', 'slice-label')
+      .attr('transform', d => `translate(${labelArc.centroid(d)})`)
+      .attr('text-anchor', 'middle')
+      .attr('dominant-baseline', 'central')
+      .style('font-size', '13px')
+      .style('font-weight', '600')
+      .style('fill', '#636363')
+      .style('font-family', "Pretendard,'Noto Sans KR',sans-serif")
+      .attr('opacity', 0)
+      .text(d => d.data.name)
+      .transition().delay(800).duration(200)
+      .attr('opacity', 1);
+
+  /* ── 레전드 (오른쪽) ── */
+  const legendX  = pieW + 8;
+  const legendG  = svg.append('g').attr('transform', `translate(${legendX}, ${cy - (data.length * 18) / 2})`);
+
+  data.forEach((d, i) => {
+    const row = legendG.append('g').attr('transform', `translate(0, ${i * 20})`);
+    row.append('rect')
+      .attr('width', 10).attr('height', 10).attr('y', -1)
+      .attr('rx', 2).attr('fill', '#c6c6c6');
+    row.append('text')
+      .attr('x', 15).attr('y', 9)
+      .style('font-size', '12px').style('fill', '#363636')
+      .style('font-family', "Pretendard,'Noto Sans KR',sans-serif")
+      .text(d.name);
+  });
+
+  /* ── SVG Export ── */
+  function exportSVG(svgEl, fn = 'pie_chart.svg') {
+    const st = document.createElement('style');
+    st.textContent = `@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');text{font-family:'Pretendard','Noto Sans KR',sans-serif;}`;
+    svgEl.insertBefore(st, svgEl.firstChild);
+    const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    bg.setAttribute('width', '100%'); bg.setAttribute('height', '100%'); bg.setAttribute('fill', '#fff');
+    svgEl.insertBefore(bg, svgEl.firstChild);
+    const blob = new Blob([new XMLSerializer().serializeToString(svgEl)], { type: 'image/svg+xml' });
+    Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: fn }).click();
+    svgEl.removeChild(st); svgEl.removeChild(bg);
+  }
+  document.getElementById('export-btn').addEventListener('click', () => exportSVG(document.querySelector('svg')));
+</script>
+</body>
+</html>

@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>누적 막대 vs 파이 차트 비교</title>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family:'Pretendard','Noto Sans KR',sans-serif;
+      background:#fff;
+      padding:40px 20px;
+    }
+    .panels { display:flex; gap:24px; align-items:flex-start; }
+    .panel  { display:inline-block; }
+    .panel-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: #363636;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding-bottom: 8px;
+      margin-bottom: 14px;
+      border-bottom: 1px solid #ddd;
+    }
+    .badge {
+      font-size: 12px;
+      font-weight: 700;
+      border-radius: 4px;
+      padding: 3px 10px;
+      color: #fff;
+      letter-spacing: 0.03em;
+      white-space: nowrap;
+    }
+    .badge-worse  { background: #b8351b; }
+    .badge-better { background: #37760a; }
+    .legend {
+      display: flex;
+      gap: 14px;
+      margin-top: 12px;
+      padding-left: 2px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 12px;
+      color: #636363;
+      font-family: 'Pretendard', 'Noto Sans KR', sans-serif;
+    }
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .source {
+      font-size: 12px;
+      color: #999;
+      margin-top: 10px;
+      font-family: 'Pretendard', 'Noto Sans KR', sans-serif;
+    }
+  </style>
+</head>
+<body>
+
+<div class="panels">
+
+  <!-- Don't: 파이 차트 4개 -->
+  <div class="panel">
+    <p class="panel-label">
+      <span class="badge badge-worse">Don't</span>
+      파이 차트 4개 나열
+    </p>
+    <div id="chart-pie"></div>
+  </div>
+
+  <!-- Do: 100% 누적 막대 -->
+  <div class="panel">
+    <p class="panel-label">
+      <span class="badge badge-better">Do</span>
+      100% 누적 막대 그래프
+    </p>
+    <div id="chart-bar"></div>
+  </div>
+
+</div>
+
+<!-- 공유 범례 -->
+<div class="legend">
+  <div class="legend-item">
+    <div class="legend-dot" style="background:#888888"></div>
+    유소년 (0~14세)
+  </div>
+  <div class="legend-item">
+    <div class="legend-dot" style="background:#6565FF"></div>
+    생산가능 (15~64세)
+  </div>
+  <div class="legend-item">
+    <div class="legend-dot" style="background:#bbbbbb"></div>
+    고령 (65세+)
+  </div>
+</div>
+<p class="source">출처: <a href="https://kosis.kr/statHtml/statHtml.do?orgId=101&tblId=DT_1IN1503" target="_blank" style="color:#999;text-decoration:underline;">통계청 인구총조사 2024</a></p>
+
+<script>
+const FONT = "Pretendard,'Noto Sans KR',sans-serif";
+const W = 236, H = 200;
+
+// 지역별 연령대 인구 비중 (2024 인구총조사, 총인구 기준, %)
+// 유소년(0~14세) / 생산가능(15~64세) / 고령(65세+)
+// 출처: 통계청 연령 및 성별 인구 – 읍면동 (DT_1IN1503)
+const rawData = [
+  { region: '서울', values: [8.6, 72.2, 19.2] },
+  { region: '경기', values: [11.5, 72.2, 16.3] },
+  { region: '부산', values: [9.5,  66.9, 23.6] },
+  { region: '강원', values: [9.6,  65.8, 24.6] },
+];
+
+const colors  = ['#888888', '#6565FF', '#bbbbbb'];
+const regions = rawData.map(d => d.region);
+
+
+// ─── 1. 파이 차트 (Don't) ────────────────────────────────────────────────────
+{
+  const svg = d3.select('#chart-pie').append('svg').attr('width', W).attr('height', H);
+  const pie = d3.pie().sort(null).value(d => d);
+  const R   = 35;
+  const arc = d3.arc().innerRadius(0).outerRadius(R);
+
+  // 2×2 격자
+  const cw = W / 2;               // 118
+  const ch = (H - 20) / 2;        // 90  (아래 레이블 공간 확보)
+
+  rawData.forEach((d, i) => {
+    const col = i % 2;
+    const row = Math.floor(i / 2);
+    const cx  = col * cw + cw / 2;
+    const cy  = row * ch + R + 6;
+
+    const g = svg.append('g').attr('transform', `translate(${cx},${cy})`);
+
+    // 파이 슬라이스 — 페이드인
+    g.selectAll('path')
+      .data(pie(d.values))
+      .join('path')
+        .attr('d', arc)
+        .attr('fill', (_, j) => colors[j])
+        .attr('stroke', '#fff')
+        .attr('stroke-width', 1.5)
+        .attr('opacity', 0)
+        .transition().duration(800).ease(d3.easeCubicInOut)
+        .attr('opacity', 1);
+
+    // 지역 레이블
+    svg.append('text')
+      .attr('x', cx)
+      .attr('y', cy + R + 13)
+      .attr('text-anchor', 'middle')
+      .style('font-size', '11px')
+      .style('fill', '#636363')
+      .style('font-family', FONT)
+      .text(d.region);
+  });
+}
+
+
+// ─── 2. 100% 누적 막대 (Do) ──────────────────────────────────────────────────
+{
+  const M  = { top: 6, right: 12, bottom: 28, left: 36 };
+  const iW = W - M.left - M.right;  // 188
+  const iH = H - M.top  - M.bottom; // 166
+
+  const svg = d3.select('#chart-bar').append('svg').attr('width', W).attr('height', H);
+  const g   = svg.append('g').attr('transform', `translate(${M.left},${M.top})`);
+
+  const x = d3.scaleBand().domain(regions).range([0, iW]).padding(0.3);
+  const y = d3.scaleLinear().domain([0, 100]).range([iH, 0]);
+
+  const yTicks  = [0, 25, 50, 75, 100];
+  const topTick = 100;
+
+  // 그리드 — 맨 위 tick은 "%" 레이블 너비만큼 오프셋 (12px)
+  g.selectAll('.grid').data(yTicks).join('line')
+    .attr('class', 'grid')
+    .attr('x1', d => d === topTick ? 12 : 0)
+    .attr('x2', iW)
+    .attr('y1', d => y(d)).attr('y2', d => y(d))
+    .style('stroke',          d => d === 0 ? '#363636' : '#aaaaaa')
+    .style('stroke-dasharray',d => d === 0 ? '0' : '2')
+    .style('stroke-opacity', 0.4);
+
+  // Y축 — 숫자만
+  g.append('g')
+    .call(
+      d3.axisLeft(y)
+        .tickValues(yTicks)
+        .tickSize(0)
+        .tickPadding(6)
+        .tickFormat(d => `${d}`)
+    )
+    .call(a => a.select('.domain').remove())
+    .selectAll('text')
+      .style('font-size', '11px')
+      .style('fill', '#999999')
+      .style('font-family', FONT)
+      .style('text-anchor', 'end');
+
+  // 단위 "%" — 맨 위 tick 오른쪽에 별도 텍스트
+  g.append('text')
+    .attr('x', -6)
+    .attr('y', y(topTick))
+    .attr('dy', '0.32em')
+    .attr('dx', 1)
+    .style('text-anchor', 'start')
+    .style('font-size', '11px')
+    .style('fill', '#999999')
+    .style('font-family', FONT)
+    .text('%');
+
+  // X축
+  g.append('g')
+    .attr('transform', `translate(0,${iH})`)
+    .call(d3.axisBottom(x).tickSize(0).tickPadding(6))
+    .call(a => a.select('.domain').remove())
+    .selectAll('text')
+      .style('font-size', '11px')
+      .style('fill', '#636363')
+      .style('font-family', FONT);
+
+  // 누적 데이터 계산
+  const stack   = d3.stack().keys([0, 1, 2]).value((d, k) => d.values[k]);
+  const stacked = stack(rawData);
+
+  // clipPath — 아래에서 위로 성장 애니메이션 (전체 너비로 서울 좌측 경계 클리핑 방지)
+  const clipId = 'bar-clip';
+  const clipRect = svg.append('defs')
+    .append('clipPath').attr('id', clipId)
+    .append('rect')
+      .attr('x', 0)
+      .attr('y', M.top + iH)
+      .attr('width', W)
+      .attr('height', 0);
+
+  clipRect.transition().duration(800).ease(d3.easeCubicInOut)
+    .attr('y', M.top)
+    .attr('height', iH);
+
+  const bw = Math.round(x.bandwidth());
+
+  // 막대 그리기
+  stacked.forEach((layer, j) => {
+    g.selectAll(null).data(layer).join('rect')
+      .attr('x',      d => Math.round(x(d.data.region)))
+      .attr('y',      d => y(d[1]))
+      .attr('width',  bw)
+      .attr('height', d => Math.max(0, y(d[0]) - y(d[1])))
+      .attr('fill',   colors[j])
+      .attr('clip-path', `url(#${clipId})`);
+  });
+}
+</script>
+</body>
+</html>
