@@ -170,106 +170,102 @@ const regions = rawData.map(d => d.region);
 // ─── 2. 100% 누적 막대 (Do) ──────────────────────────────────────────────────
 {
   const M  = { top: 6, right: 12, bottom: 28, left: 36 };
-  const iW = W - M.left - M.right;  // 188
-  const iH = H - M.top  - M.bottom; // 166
+  const iW = W - M.left - M.right;
+  const iH = H - M.top  - M.bottom;
 
   const svg = d3.select('#chart-bar').append('svg').attr('width', W).attr('height', H);
   const g   = svg.append('g').attr('transform', `translate(${M.left},${M.top})`);
 
-  const x = d3.scaleBand().domain(regions).range([0, iW]).padding(0.3);
-  const y = d3.scaleLinear().domain([0, 100]).range([iH, 0]);
+  const x  = d3.scaleBand().domain(regions).range([0, iW]).padding(0.3);
+  const y  = d3.scaleLinear().domain([0, 1]).range([iH, 0]);
+  const bw = Math.round(x.bandwidth());
 
-  const yTicks  = [0, 25, 50, 75, 100];
-  const topTick = 100;
+  const yTicks = [0, 0.25, 0.5, 0.75, 1];
 
-  // 그리드 — zero 제외한 점선만 (zero line은 막대 위에 별도 렌더링)
-  g.selectAll('.grid').data(yTicks.filter(d => d !== 0)).join('line')
+  // 정수 픽셀 높이 — 최대나머지법으로 합이 정확히 iH 보장
+  // 부동소수점·d3.stack·clipPath 없이 100% 채움 보장
+  function segPx(values) {
+    const total = values.reduce((a, b) => a + b, 0);
+    const raw   = values.map(v => v / total * iH);
+    const fl    = raw.map(Math.floor);
+    const rem   = raw.map((r, i) => [r - fl[i], i]).sort((a, b) => b[0] - a[0]);
+    let deficit = iH - fl.reduce((a, b) => a + b, 0);
+    rem.forEach(([, i]) => { if (deficit-- > 0) fl[i]++; });
+    return fl;  // [h_유소년, h_생산가능, h_고령], 합=iH 정확
+  }
+
+  // ① 막대 — 정수 픽셀 위치로 직접 그림 (top=y:0, bottom=y:iH 보장)
+  rawData.forEach(d => {
+    const px   = segPx(d.values);   // [h0, h1, h2]
+    const xPos = Math.round(x(d.region));
+    let cumY   = 0;                  // y:0 = 100% 라인에서 시작
+
+    // 위→아래 순서: 고령(2) → 생산가능(1) → 유소년(0)
+    [2, 1, 0].forEach((idx, i) => {
+      if (i > 0) {                   // 세그먼트 경계에 흰 구분선
+        g.append('line')
+          .attr('x1', xPos).attr('x2', xPos + bw)
+          .attr('y1', cumY).attr('y2', cumY)
+          .style('stroke', '#fff').style('stroke-width', 2);
+      }
+      g.append('rect')
+        .attr('x', xPos).attr('y', cumY)
+        .attr('width', bw).attr('height', px[idx])
+        .attr('fill', colors[idx]);
+      cumY += px[idx];               // cumY 최종값 = iH = 0% 라인
+    });
+  });
+
+  // ② 흰색 커버 — 막대 위에 올려 height:iH→0으로 줄며 아래→위 reveal
+  //    clipPath 없이 막대가 y:0~iH 픽셀 그대로 유지됨
+  const cover = g.append('rect')
+    .attr('x', 0).attr('y', 0)
+    .attr('width', iW).attr('height', iH)
+    .attr('fill', '#ffffff');
+  cover.transition().duration(800).ease(d3.easeCubicInOut)
+    .attr('height', 0);
+
+  // ③ 그리드 (커버 위, 항상 표시) — 0%·100% 제외, 나머지만
+  g.selectAll('.grid').data(yTicks.filter(d => d !== 0 && d !== 1)).join('line')
     .attr('class', 'grid')
-    .attr('x1', d => d === topTick ? 12 : 0)
-    .attr('x2', iW)
+    .attr('x1', 0).attr('x2', iW)
     .attr('y1', d => y(d)).attr('y2', d => y(d))
-    .style('stroke',          '#aaaaaa')
-    .style('stroke-dasharray','2')
-    .style('stroke-opacity',  0.4);
+    .style('stroke', '#aaaaaa').style('stroke-dasharray', '2').style('stroke-opacity', 0.4);
 
-  // Y축 — 숫자만
+  // ④ Y축
   g.append('g')
     .call(
       d3.axisLeft(y)
-        .tickValues(yTicks)
-        .tickSize(0)
-        .tickPadding(6)
-        .tickFormat(d => `${d}`)
+        .tickValues(yTicks).tickSize(0).tickPadding(6)
+        .tickFormat(d => `${Math.round(d * 100)}`)
     )
     .call(a => a.select('.domain').remove())
     .selectAll('text')
-      .style('font-size', '11px')
-      .style('fill', '#999999')
-      .style('font-family', FONT)
-      .style('text-anchor', 'end');
+      .style('font-size', '11px').style('fill', '#999999')
+      .style('font-family', FONT).style('text-anchor', 'end');
 
-  // 단위 "%" — 맨 위 tick 오른쪽에 별도 텍스트
   g.append('text')
-    .attr('x', -6)
-    .attr('y', y(topTick))
-    .attr('dy', '0.32em')
-    .attr('dx', 1)
-    .style('text-anchor', 'start')
-    .style('font-size', '11px')
-    .style('fill', '#999999')
-    .style('font-family', FONT)
-    .text('%');
+    .attr('x', -6).attr('y', 0).attr('dy', '0.32em').attr('dx', 1)
+    .style('text-anchor', 'start').style('font-size', '11px')
+    .style('fill', '#999999').style('font-family', FONT).text('%');
 
-  // X축
+  // ⑤ X축
   g.append('g')
     .attr('transform', `translate(0,${iH})`)
     .call(d3.axisBottom(x).tickSize(0).tickPadding(6))
     .call(a => a.select('.domain').remove())
     .selectAll('text')
-      .style('font-size', '11px')
-      .style('fill', '#636363')
-      .style('font-family', FONT);
+      .style('font-size', '11px').style('fill', '#636363').style('font-family', FONT);
 
-  // 누적 데이터 계산
-  const stack   = d3.stack().keys([0, 1, 2]).value((d, k) => d.values[k]);
-  const stacked = stack(rawData);
-
-  // clipPath — 아래에서 위로 성장 애니메이션 (전체 너비로 서울 좌측 경계 클리핑 방지)
-  const clipId = 'bar-clip';
-  const clipRect = svg.append('defs')
-    .append('clipPath').attr('id', clipId)
-    .append('rect')
-      .attr('x', 0)
-      .attr('y', M.top + iH)
-      .attr('width', W)
-      .attr('height', 0);
-
-  clipRect.transition().duration(800).ease(d3.easeCubicInOut)
-    .attr('y', M.top)
-    .attr('height', iH);
-
-  const bw = Math.round(x.bandwidth());
-
-  // 막대 그리기
-  stacked.forEach((layer, j) => {
-    g.selectAll(null).data(layer).join('rect')
-      .attr('x',            d => Math.round(x(d.data.region)))
-      .attr('y',            d => y(d[1]))
-      .attr('width',        bw)
-      .attr('height',       d => Math.max(0, y(d[0]) - y(d[1])))
-      .attr('fill',         colors[j])
-      .attr('stroke',       '#fff')
-      .attr('stroke-width', 1)
-      .attr('clip-path',    `url(#${clipId})`);
-  });
-
-  // zero line — 막대 위에 렌더링 (SVG 레이어 최상단)
+  // ⑥ 100% 그리드선 — y:0 (막대 상단과 동일), 막대 이후 렌더링
   g.append('line')
-    .attr('x1', 0).attr('x2', iW)
-    .attr('y1', y(0)).attr('y2', y(0))
-    .style('stroke', '#363636')
-    .style('stroke-dasharray', '0')
-    .style('stroke-opacity', 0.4);
+    .attr('x1', 12).attr('x2', iW).attr('y1', 0).attr('y2', 0)
+    .style('stroke', '#aaaaaa').style('stroke-dasharray', '2').style('stroke-opacity', 0.4);
+
+  // ⑦ zero line — y:iH (막대 하단과 동일)
+  g.append('line')
+    .attr('x1', 0).attr('x2', iW).attr('y1', iH).attr('y2', iH)
+    .style('stroke', '#363636').style('stroke-opacity', 0.4);
 }
 </script>
 </body>

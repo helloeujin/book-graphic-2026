@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>파이 차트 — 순서 비교</title>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family:'Pretendard','Noto Sans KR',sans-serif;
+      background:#fff;
+      padding:40px 20px;
+    }
+    .panels { display:flex; gap:24px; align-items:flex-start; }
+    .panel  { display:inline-block; }
+    .panel-label {
+      font-size:13px; font-weight:500; color:#363636;
+      display:flex; align-items:center; gap:8px;
+      padding-bottom:8px; margin-bottom:14px;
+      border-bottom:1px solid #ddd;
+      width:236px;
+    }
+    .badge {
+      font-size:12px; font-weight:700; border-radius:4px;
+      padding:3px 10px; color:#fff; letter-spacing:0.03em; white-space:nowrap;
+    }
+    .badge-worse  { background:#b8351b; }
+    .badge-better { background:#37760a; }
+    .legend { display:flex; gap:14px; margin-top:10px; flex-wrap:wrap; }
+    .legend-item {
+      display:flex; align-items:center; gap:5px;
+      font-size:12px; color:#636363;
+    }
+    .legend-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+    .source { font-size:12px; color:#999; margin-top:8px; }
+  </style>
+</head>
+<body>
+
+<div class="panels">
+
+  <div class="panel">
+    <p class="panel-label">
+      <span class="badge badge-worse">Don't</span>
+      임의 순서 배치
+    </p>
+    <div id="chart-dont"></div>
+  </div>
+
+  <div class="panel">
+    <p class="panel-label">
+      <span class="badge badge-better">Do</span>
+      큰 항목부터 시계방향 배치
+    </p>
+    <div id="chart-do"></div>
+  </div>
+
+</div>
+
+<p class="source">*가상 데이터</p>
+
+<script>
+const FONT = "Pretendard,'Noto Sans KR',sans-serif";
+const W = 236, H = 200;
+const R = 80;
+const cx = W / 2, cy = H / 2;
+
+const dataMap = {
+  A: { value: 35, color: '#6565FF' },
+  B: { value: 25, color: '#C6C6C6' },
+  C: { value: 20, color: '#C6C6C6' },
+  D: { value: 13, color: '#C6C6C6' },
+  E: { value:  7, color: '#C6C6C6' },
+};
+
+const arc      = d3.arc().innerRadius(0).outerRadius(R);
+const arcLabel = d3.arc().innerRadius(R * 0.62).outerRadius(R * 0.62);
+
+function drawPie(containerId, order) {
+  const pieData = order.map(k => ({ label: k, ...dataMap[k] }));
+  const pie = d3.pie().sort(null).value(d => d.value).startAngle(0);
+
+  const svg = d3.select(containerId).append('svg').attr('width', W).attr('height', H);
+  const g   = svg.append('g').attr('transform', `translate(${cx},${cy})`);
+
+  const slices = g.selectAll('.arc').data(pie(pieData)).join('g').attr('class', 'arc');
+
+  slices.append('path')
+    .attr('d', arc)
+    .attr('fill', d => d.data.color)
+    .attr('stroke', '#fff')
+    .attr('stroke-width', 1.5)
+    .attr('opacity', 0)
+    .transition().duration(800).ease(d3.easeCubicInOut)
+    .attr('opacity', 1);
+
+  slices.append('text')
+    .attr('transform', d => `translate(${arcLabel.centroid(d)})`)
+    .attr('text-anchor', 'middle')
+    .attr('dy', '0.35em')
+    .style('font-size', '12px')
+    .style('font-weight', '600')
+    .style('fill', d => d.data.label === 'A' ? '#ffffff' : '#888888')
+    .style('font-family', FONT)
+    .text(d => d.data.label);
+
+
+}
+
+// Don't: 임의 순서 (크기와 무관하게 섞임)
+drawPie('#chart-dont', ['C', 'E', 'B', 'A', 'D']);
+
+// Do: 내림차순 (A→B→C→D→E)
+drawPie('#chart-do',   ['A', 'B', 'C', 'D', 'E']);
+</script>
+</body>
+</html>

@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>파이 차트 — 카테고리 수 비교</title>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family:'Pretendard','Noto Sans KR',sans-serif;
+      background:#fff;
+      padding:40px 20px;
+    }
+    .panels { display:flex; gap:24px; align-items:flex-start; }
+    .panel  { display:inline-block; }
+
+    /* ── 비교 레이블 (STYLE_GUIDE §13) ── */
+    .panel-label {
+      font-size: 13px; font-weight: 500; color: #363636;
+      display: flex; align-items: center; gap: 8px;
+      padding-bottom: 8px; margin-bottom: 14px;
+      border-bottom: 1px solid #ddd;
+      width: 236px;
+    }
+    .badge {
+      font-size: 12px; font-weight: 700; border-radius: 4px;
+      padding: 3px 10px; color: #fff;
+      letter-spacing: 0.03em; white-space: nowrap;
+    }
+    .badge-worse  { background: #b8351b; }
+    .badge-better { background: #37760a; }
+
+    /* ── 범례 ── */
+    .legend {
+      display: flex; flex-wrap: wrap;
+      gap: 4px 10px; margin-top: 8px; width: 236px;
+    }
+    .legend-item {
+      display: flex; align-items: center; gap: 5px;
+      font-size: 11px; color: #636363;
+      font-family: 'Pretendard','Noto Sans KR',sans-serif;
+    }
+    .legend-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%; flex-shrink: 0;
+    }
+
+    /* ── 하단 ── */
+    .source {
+      font-size: 12px; color: #999; margin-top: 14px;
+      font-family: 'Pretendard','Noto Sans KR',sans-serif;
+    }
+    #export-btn {
+      display: inline-block; margin-top: 12px;
+      padding: 6px 14px; font-size: 12px;
+      background: #000; color: #fff;
+      border: none; border-radius: 4px; cursor: pointer;
+      font-family: 'Pretendard','Noto Sans KR',sans-serif;
+    }
+  </style>
+</head>
+<body>
+
+<div class="panels">
+
+  <!-- Don't: 8개 파이 -->
+  <div class="panel">
+    <p class="panel-label">
+      <span class="badge badge-worse">Don't</span>
+      8개 항목 파이 차트
+    </p>
+    <div id="chart-pie8"></div>
+  </div>
+
+  <!-- Do: 상위 3 + 기타 -->
+  <div class="panel">
+    <p class="panel-label">
+      <span class="badge badge-better">Do</span>
+      상위 3개 + 기타로 정리
+    </p>
+    <div id="chart-pie4"></div>
+  </div>
+
+</div>
+
+<p class="source">* 예시 데이터 (가구 소비지출 비중)</p>
+<button id="export-btn">SVG 다운로드</button>
+
+<script>
+const FONT = "Pretendard,'Noto Sans KR',sans-serif";
+const W = 236, H = 200;
+const R = 85;
+const cx = W / 2, cy = H / 2;
+
+// ── 데이터 — 모든 조각 동일 회색 ────────────────────────────
+const GRAY = '#bfbfbf';
+
+const data8 = [
+  { label: '식비', value: 32, color: GRAY },
+  { label: '주거', value: 25, color: GRAY },
+  { label: '교통', value: 18, color: GRAY },
+  { label: '교육', value:  8, color: GRAY },
+  { label: '의료', value:  6, color: GRAY },
+  { label: '여가', value:  5, color: GRAY },
+  { label: '의류', value:  4, color: GRAY },
+  { label: '통신', value:  2, color: GRAY },
+];
+
+const data4 = [
+  { label: '식비', value: 32, color: GRAY },
+  { label: '주거', value: 25, color: GRAY },
+  { label: '교통', value: 18, color: GRAY },
+  { label: '기타', value: 25, color: GRAY },
+];
+
+// ── 파이 차트 그리기 ─────────────────────────────────────────
+function drawPie(containerId, data, sliceLabels) {
+  const svg = d3.select(`#${containerId}`).append('svg')
+    .attr('width', W).attr('height', H);
+
+  const pie = d3.pie().sort(null).value(d => d.value);
+  const arc = d3.arc().innerRadius(0).outerRadius(R);
+
+  const g    = svg.append('g').attr('transform', `translate(${cx},${cy})`);
+  const arcs = pie(data);
+
+  // 슬라이스
+  g.selectAll('path')
+    .data(arcs)
+    .join('path')
+      .attr('fill',         d => d.data.color)
+      .attr('stroke',       '#fff')
+      .attr('stroke-width', 1.5)
+      .transition().duration(800).ease(d3.easeCubicInOut)
+      .attrTween('d', d => {
+        const i = d3.interpolate(
+          { startAngle: d.startAngle, endAngle: d.startAngle }, d
+        );
+        return t => arc(i(t));
+      });
+
+  // 중심점 — 작게 유지
+  g.append('circle')
+    .attr('r', 1.5)
+    .attr('fill', '#fff')
+    .attr('pointer-events', 'none');
+
+  // 내부 레이블 — 슬라이스 중심에 배치, 충분히 큰 조각만
+  const larc = d3.arc().innerRadius(R * 0.58).outerRadius(R * 0.58);
+
+  g.selectAll('.lbl')
+    .data(arcs)
+    .join('text')
+      .attr('class', 'lbl')
+      .attr('transform', d => `translate(${larc.centroid(d)})`)
+      .attr('text-anchor', 'middle')
+      .attr('dy', '0.35em')
+      .style('font-size', '12px')
+      .style('font-weight', '700')
+      .style('fill',        '#545454')   // #bbb 위에서 가독성 확보
+      .style('font-family', FONT)
+      .style('pointer-events', 'none')
+      .text((d, i) =>
+        (d.endAngle - d.startAngle) >= 0.28   // 너무 작은 조각은 생략
+          ? (sliceLabels[i] ?? '') : '')
+      .attr('opacity', 0)
+      .transition().delay(600).duration(300)
+      .attr('opacity', 1);
+
+  return svg.node();
+}
+
+// ── 렌더링 ──────────────────────────────────────────────────
+drawPie('chart-pie8', data8, ['A','B','C','D','E','F','G','H']);
+drawPie('chart-pie4', data4, ['A','B','C','기타']);
+
+// ── SVG 내보내기 ─────────────────────────────────────────────
+document.getElementById('export-btn').addEventListener('click', () => {
+  document.querySelectorAll('svg').forEach((svg, i) => {
+    const clone = svg.cloneNode(true);
+
+    const style = document.createElementNS('http://www.w3.org/2000/svg','style');
+    style.textContent = `@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');text{font-family:'Pretendard','Noto Sans KR',sans-serif;}`;
+
+    const bg = document.createElementNS('http://www.w3.org/2000/svg','rect');
+    bg.setAttribute('width','100%'); bg.setAttribute('height','100%');
+    bg.setAttribute('fill','#ffffff');
+
+    clone.insertBefore(bg,    clone.firstChild);
+    clone.insertBefore(style, clone.firstChild);
+
+    const blob = new Blob(
+      [new XMLSerializer().serializeToString(clone)],
+      { type: 'image/svg+xml' }
+    );
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `pie-${i === 0 ? 'dont-8' : 'do-4'}.svg`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+});
+</script>
+</body>
+</html>
