@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>트리맵 정렬 순서 비교</title>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family:'Pretendard','Noto Sans KR',sans-serif;
+      background:#fff;
+      padding:40px 20px;
+    }
+    .panels { display:flex; gap:24px; align-items:flex-start; }
+    .panel  { display:inline-block; }
+
+    .panel-label {
+      font-size: 13px; font-weight: 500; color: #363636;
+      display: flex; align-items: center; gap: 8px;
+      padding-bottom: 8px; margin-bottom: 14px;
+      border-bottom: 1px solid #ddd;
+      width: 236px;
+    }
+    .badge {
+      font-size: 12px; font-weight: 700; border-radius: 4px;
+      padding: 3px 10px; color: #fff;
+      letter-spacing: 0.03em; white-space: nowrap;
+    }
+    .badge-worse  { background: #b8351b; }
+    .badge-better { background: #37760a; }
+
+    .source {
+      font-size: 12px; color: #999; margin-top: 14px;
+    }
+    #export-btn {
+      display: inline-block; margin-top: 12px;
+      padding: 6px 14px; font-size: 12px;
+      background: #000; color: #fff;
+      border: none; border-radius: 4px; cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+<div class="panels">
+
+  <div class="panel">
+    <p class="panel-label">
+      <span class="badge badge-worse">Worse</span>
+      크기 순서 무시 (임의 배치)
+    </p>
+    <div id="chart-worse"></div>
+  </div>
+
+  <div class="panel">
+    <p class="panel-label">
+      <span class="badge badge-better">Better</span>
+      큰 항목부터 배치 (내림차순)
+    </p>
+    <div id="chart-better"></div>
+  </div>
+
+</div>
+
+<p class="source">* 예시 데이터 (가구 소비지출 비중)</p>
+<button id="export-btn">SVG 다운로드</button>
+
+<script>
+const FONT = "Pretendard,'Noto Sans KR',sans-serif";
+const W = 236, H = 200;
+const GRAY      = '#bfbfbf';
+const HIGHLIGHT = '#6565FF';
+
+// Worse: 랜덤 순서 — 큰 항목이 중간에 섞임
+const worseData = [
+  { name: '교통', value: 18 },
+  { name: '통신', value:  2 },
+  { name: '주거', value: 25 },
+  { name: '여가', value:  5 },
+  { name: '식비', value: 32 },
+  { name: '의류', value:  4 },
+  { name: '교육', value:  8 },
+  { name: '의료', value:  6 },
+];
+
+// Better: 내림차순 — 가장 큰 항목(식비)이 첫 번째
+const betterData = [
+  { name: '식비', value: 32 },
+  { name: '주거', value: 25 },
+  { name: '교통', value: 18 },
+  { name: '교육', value:  8 },
+  { name: '의료', value:  6 },
+  { name: '여가', value:  5 },
+  { name: '의류', value:  4 },
+  { name: '통신', value:  2 },
+];
+
+const MAX_VAL = 32; // 식비
+
+// ── 트리맵 그리기 ────────────────────────────────────────────
+function drawTreemap(containerId, data) {
+  const M  = { top: 4, right: 4, bottom: 4, left: 4 };
+  const iW = W - M.left - M.right;
+  const iH = H - M.top  - M.bottom;
+
+  const svg = d3.select(`#${containerId}`).append('svg')
+    .attr('width', W).attr('height', H);
+
+  const g = svg.append('g').attr('transform', `translate(${M.left},${M.top})`);
+
+  // 계층 구조 생성 — sort 비활성화 (데이터 순서 그대로 타일링)
+  const root = d3.hierarchy({ children: data })
+    .sum(d => d.value ?? 0);
+
+  d3.treemap()
+    .size([iW, iH])
+    .paddingInner(2)
+    .paddingOuter(0)
+    (root);
+
+  // 직사각형
+  g.selectAll('rect')
+    .data(root.leaves())
+    .join('rect')
+      .attr('x',      d => d.x0)
+      .attr('y',      d => d.y0)
+      .attr('width',  d => d.x1 - d.x0)
+      .attr('height', d => d.y1 - d.y0)
+      .attr('fill',   d => d.data.value === MAX_VAL ? HIGHLIGHT : GRAY);
+
+  // 흰 커버 — 왼쪽→오른쪽으로 reveal
+  const cover = g.append('rect')
+    .attr('x', 0).attr('y', 0)
+    .attr('width', iW).attr('height', iH)
+    .attr('fill', '#ffffff');
+
+  cover.transition().duration(800).ease(d3.easeCubicInOut)
+    .attr('x', iW)
+    .attr('width', 0);
+
+  return svg.node();
+}
+
+drawTreemap('chart-worse',  worseData);
+drawTreemap('chart-better', betterData);
+
+// ── SVG 내보내기 ─────────────────────────────────────────────
+document.getElementById('export-btn').addEventListener('click', () => {
+  document.querySelectorAll('svg').forEach((svg, i) => {
+    const clone = svg.cloneNode(true);
+    const style = document.createElementNS('http://www.w3.org/2000/svg','style');
+    style.textContent = `text{font-family:'Pretendard','Noto Sans KR',sans-serif;}`;
+    const bg = document.createElementNS('http://www.w3.org/2000/svg','rect');
+    bg.setAttribute('width','100%'); bg.setAttribute('height','100%');
+    bg.setAttribute('fill','#ffffff');
+    clone.insertBefore(bg,    clone.firstChild);
+    clone.insertBefore(style, clone.firstChild);
+    const blob = new Blob(
+      [new XMLSerializer().serializeToString(clone)],
+      { type: 'image/svg+xml' }
+    );
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `treemap-${i === 0 ? 'worse' : 'better'}.svg`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+});
+</script>
+</body>
+</html>
