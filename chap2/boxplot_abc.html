@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>박스 플롯</title>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Pretendard', 'Noto Sans KR', sans-serif; background: #fff; padding: 40px 20px; }
+    .container { display: inline-block; }
+    h1 { font-size: 17px; line-height: 22px; font-weight: 700; color: #363636; padding-bottom: 5px; }
+    .source { font-size: 13px; line-height: 17px; color: #777; margin-top: 8px; }
+    .tooltip {
+      position: fixed; background: rgba(255,255,255,0.95); border: 1px solid #c6c6c6;
+      border-radius: 4px; padding: 10px 12px; pointer-events: none; opacity: 0;
+      transition: opacity 0.15s; box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    .tooltip-title { font-size: 14px; font-weight: 600; color: #454545; }
+    .tooltip-body  { font-size: 13px; color: #636363; margin-top: 3px; line-height: 20px; }
+    #export-btn {
+      margin-top: 12px; padding: 8px 16px; font-size: 13px;
+      background: #000; color: #fff; border: none; border-radius: 4px;
+      cursor: pointer; font-family: 'Pretendard', sans-serif;
+    }
+    #export-btn:hover { background: #333; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div style="border: 1px solid #aaa; padding: 16px; display: inline-block;">
+    <h1>항목별 분포</h1>
+    <div id="chart"></div>
+    <p class="source">출처: 예시 데이터</p>
+  </div><br>
+  <button id="export-btn">SVG 다운로드</button>
+</div>
+
+<div class="tooltip" id="tooltip">
+  <div class="tooltip-title" id="tt-title"></div>
+  <div class="tooltip-body"  id="tt-body"></div>
+</div>
+
+<script>
+  const data = [
+    { group: 'A', min: 12, q1: 18, median: 24, q3: 33, max: 39, outliers: [6, 44] },
+    { group: 'B', min: 16, q1: 22, median: 27, q3: 33, max: 39, outliers: []      },
+    { group: 'C', min: 10, q1: 15, median: 20, q3: 26, max: 33, outliers: [4, 40] },
+  ];
+
+  /* ── 치수 ── */
+  const W = 236, H = 220;
+  const M = { top: 6, right: 10, bottom: 30, left: 36 };
+  const iW = W - M.left - M.right;
+  const iH = H - M.top  - M.bottom;
+
+  const svg = d3.select('#chart').append('svg')
+    .attr('width', W).attr('height', H).attr('xmlns', 'http://www.w3.org/2000/svg');
+  const g = svg.append('g').attr('transform', `translate(${M.left},${M.top})`);
+
+  /* ── 스케일 ── */
+  const yScale = d3.scaleLinear().domain([0, 50]).range([iH, 0]);
+  const yTicks = [0, 10, 20, 30, 40, 50];
+  const xScale = d3.scaleBand().domain(['A', 'B', 'C']).range([0, iW]).padding(0.38);
+
+  /* ── 그리드 ── */
+  g.append('g').selectAll('line').data(yTicks.slice(1)).join('line')
+    .attr('x1', 0).attr('x2', iW)
+    .attr('y1', d => yScale(d)).attr('y2', d => yScale(d))
+    .style('stroke', '#aaaaaa').style('stroke-dasharray', '2').style('stroke-opacity', 0.4);
+
+  /* ── zero line ── */
+  g.append('line')
+    .attr('x1', 0).attr('x2', iW)
+    .attr('y1', yScale(0)).attr('y2', yScale(0))
+    .style('stroke', '#363636').style('stroke-opacity', 0.4);
+
+  /* ── Y축 ── */
+  g.append('g')
+    .call(d3.axisLeft(yScale).tickValues(yTicks).tickSize(0).tickPadding(8))
+    .call(a => a.select('.domain').remove())
+    .selectAll('text')
+      .style('font-size', '13px').style('fill', '#999999')
+      .style('font-family', "Pretendard,'Noto Sans KR',sans-serif");
+
+  /* ── X축 ── */
+  g.append('g').attr('transform', `translate(0,${iH})`)
+    .call(d3.axisBottom(xScale).tickSize(0).tickPadding(8))
+    .call(a => a.select('.domain').remove())
+    .selectAll('text')
+      .style('font-size', '13px').style('fill', '#636363')
+      .style('font-family', "Pretendard,'Noto Sans KR',sans-serif");
+
+  /* ── 클립패스 애니메이션 ── */
+  const defs = svg.append('defs');
+  const clipRect = defs.append('clipPath').attr('id', 'clip-box')
+    .append('rect')
+      .attr('x', 0).attr('y', iH).attr('width', iW + M.right).attr('height', 0);
+  clipRect.transition().duration(800).ease(d3.easeCubicInOut)
+    .attr('y', 0).attr('height', iH + M.top);
+
+  const tooltip  = document.getElementById('tooltip');
+  const ttTitle  = document.getElementById('tt-title');
+  const ttBody   = document.getElementById('tt-body');
+
+  const boxG = g.append('g').attr('clip-path', 'url(#clip-box)');
+  const bw   = xScale.bandwidth();
+  const bw9  = bw * 0.9;
+  const bwOff = bw * 0.05;
+  const capW = bw9 * 0.38;
+
+  data.forEach(d => {
+    const cx  = xScale(d.group) + bwOff + bw9 / 2;
+    const grp = boxG.append('g').style('cursor', 'pointer');
+
+    /* 아래 수염 */
+    grp.append('line')
+      .attr('x1', cx).attr('x2', cx)
+      .attr('y1', yScale(d.min)).attr('y2', yScale(d.q1))
+      .style('stroke', '#6565FF').style('stroke-width', 1.5);
+
+    /* 위 수염 */
+    grp.append('line')
+      .attr('x1', cx).attr('x2', cx)
+      .attr('y1', yScale(d.q3)).attr('y2', yScale(d.max))
+      .style('stroke', '#6565FF').style('stroke-width', 1.5);
+
+    /* 최솟값 캡 */
+    grp.append('line')
+      .attr('x1', cx - capW / 2).attr('x2', cx + capW / 2)
+      .attr('y1', yScale(d.min)).attr('y2', yScale(d.min))
+      .style('stroke', '#6565FF').style('stroke-width', 1.5);
+
+    /* 최댓값 캡 */
+    grp.append('line')
+      .attr('x1', cx - capW / 2).attr('x2', cx + capW / 2)
+      .attr('y1', yScale(d.max)).attr('y2', yScale(d.max))
+      .style('stroke', '#6565FF').style('stroke-width', 1.5);
+
+    /* IQR 박스 */
+    const box = grp.append('rect')
+      .attr('x',      xScale(d.group) + bwOff)
+      .attr('y',      yScale(d.q3))
+      .attr('width',  bw9)
+      .attr('height', yScale(d.q1) - yScale(d.q3))
+      .attr('rx', 2)
+      .attr('fill', '#c4c4ff')
+      .attr('stroke', '#6565FF')
+      .attr('stroke-width', 1.5);
+
+    /* 중앙값 선 */
+    grp.append('line')
+      .attr('x1', xScale(d.group) + bwOff).attr('x2', xScale(d.group) + bwOff + bw9)
+      .attr('y1', yScale(d.median)).attr('y2', yScale(d.median))
+      .style('stroke', '#6565FF').style('stroke-width', 2);
+
+    /* 이상값 */
+    d.outliers.forEach(o => {
+      grp.append('circle')
+        .attr('cx', cx).attr('cy', yScale(o))
+        .attr('r', 3)
+        .attr('fill', 'none')
+        .attr('stroke', '#6565FF')
+        .attr('stroke-width', 1.5);
+    });
+
+    /* 호버 */
+    grp
+      .on('mouseover', function(event) {
+        box.attr('fill', '#a8a8ff');
+        ttTitle.textContent = `그룹 ${d.group}`;
+        ttBody.innerHTML =
+          `최솟값: ${d.min}<br>Q1: ${d.q1}<br>중앙값: ${d.median}<br>Q3: ${d.q3}<br>최댓값: ${d.max}` +
+          (d.outliers.length ? `<br>이상값: ${d.outliers.join(', ')}` : '');
+        tooltip.style.opacity = '1';
+        tooltip.style.left = (event.clientX + 12) + 'px';
+        tooltip.style.top  = (event.clientY - 70) + 'px';
+      })
+      .on('mousemove', function(event) {
+        tooltip.style.left = (event.clientX + 12) + 'px';
+        tooltip.style.top  = (event.clientY - 70) + 'px';
+      })
+      .on('mouseleave', function() {
+        box.attr('fill', '#c4c4ff');
+        tooltip.style.opacity = '0';
+      });
+  });
+
+  /* ── SVG Export ── */
+  function exportSVG(svgEl, fn = 'boxplot_single.svg') {
+    const st = document.createElement('style');
+    st.textContent = `@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');text{font-family:'Pretendard','Noto Sans KR',sans-serif;}`;
+    svgEl.insertBefore(st, svgEl.firstChild);
+    const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    bg.setAttribute('width', '100%'); bg.setAttribute('height', '100%'); bg.setAttribute('fill', '#fff');
+    svgEl.insertBefore(bg, svgEl.firstChild);
+    const blob = new Blob([new XMLSerializer().serializeToString(svgEl)], { type: 'image/svg+xml' });
+    Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: fn }).click();
+    svgEl.removeChild(st); svgEl.removeChild(bg);
+  }
+  document.getElementById('export-btn').addEventListener('click', () => exportSVG(document.querySelector('svg')));
+</script>
+</body>
+</html>

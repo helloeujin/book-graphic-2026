@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <title>히트맵</title>
+  <title>상관관계 히트맵</title>
   <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
   <style>
@@ -29,9 +29,9 @@
 <body>
 <div class="container">
   <div style="border: 1px solid #aaa; padding: 16px; display: inline-block;">
-    <h1>항목별 연도 비교</h1>
+    <h1>Variable Correlation</h1>
     <div id="chart"></div>
-    <p class="source">출처: 예시 데이터</p>
+    <p class="source">Source: Sample data</p>
   </div><br>
   <button id="export-btn">SVG 다운로드</button>
 </div>
@@ -42,24 +42,28 @@
 </div>
 
 <script>
-  const xLabels = [2000, 2005, 2010, 2015, 2020];
-  const yLabels = ['A', 'B', 'C', 'D', 'E'];
+  const colVars = ['A', 'B', 'C', 'D'];
+  const rowVars = ['E', 'F', 'G', 'H'];
 
-  const data = [
-    { y: 'A', values: [-4, -1,  3,  8, 14] },
-    { y: 'B', values: [ 5, -3, 11, -2,  9] },
-    { y: 'C', values: [-2,  6, -4, 10, -5] },
-    { y: 'D', values: [ 9, -4,  5, -3,  2] },
-    { y: 'E', values: [-5, 12, -1,  4, 15] }
+  /* ── 데이터 (-10 ~ 10 범위) ── */
+  const matrix = [
+  /*      A      B      C      D  */
+  /* E */ [ 8.2,  3.5, -4.1,  1.0 ],
+  /* F */ [-2.3,  7.8,  5.4, -6.9 ],
+  /* G */ [ 4.7, -1.2,  9.1,  2.8 ],
+  /* H */ [-7.5,  6.3, -3.8,  5.6 ]
   ];
 
-  const flat = data.flatMap(row =>
-    row.values.map((v, xi) => ({ y: row.y, x: xLabels[xi], value: v }))
+  const flat = [];
+  rowVars.forEach((row, ri) =>
+    colVars.forEach((col, ci) =>
+      flat.push({ row, col, value: matrix[ri][ci] })
+    )
   );
 
   /* ── 치수 ── */
-  const W  = 236, H = 220;
-  const M  = { top: 6, right: 10, bottom: 50, left: 48 };
+  const W  = 236, H = 200;
+  const M  = { top: 6, right: 10, bottom: 54, left: 36 };
   const iW = W - M.left - M.right;
   const iH = H - M.top  - M.bottom;
 
@@ -68,14 +72,15 @@
   const g = svg.append('g').attr('transform', `translate(${M.left},${M.top})`);
 
   /* ── 스케일 ── */
-  const xScale = d3.scaleBand().domain(xLabels).range([0, iW]).padding(0.06);
-  const yScale = d3.scaleBand().domain(yLabels).range([0, iH]).padding(0.06);
+  const xScale = d3.scaleBand().domain(colVars).range([0, iW]).padding(0.06);
+  const yScale = d3.scaleBand().domain(rowVars).range([0, iH]).padding(0.06);
 
-  // Sequential: #6565FF (프로젝트 accent)
-  // 낮은 값 → #ebebff (연한 tint), 높은 값 → #6565FF
-  const colorScale = d3.scaleSequential()
-    .domain([0, 15])
-    .interpolator(d3.interpolateRgb('#c4c4ff', '#6565FF'));
+  /* ── 색상 스케일 — 발산형
+       음수: #184687 (blue-600) → 중앙: #eaeaea (gray-100) → 양수: #6565FF
+  ── */
+  const colorScale = d3.scaleDiverging()
+    .domain([-10, 0, 10])
+    .interpolator(d3.interpolateRgbBasis(['#EFA33A', '#f7f7f7', '#6565FF']));
 
   /* ── X축 ── */
   g.append('g').attr('transform', `translate(0,${iH})`)
@@ -93,25 +98,26 @@
       .style('font-size', '13px').style('fill', '#636363')
       .style('font-family', "Pretendard,'Noto Sans KR',sans-serif");
 
-  /* ── 셀 ── */
+  /* ── 툴팁 ── */
   const tooltip = document.getElementById('tooltip');
   const ttTitle = document.getElementById('tt-title');
   const ttBody  = document.getElementById('tt-body');
 
+  /* ── 셀 ── */
   const cells = g.selectAll('rect.cell')
     .data(flat).join('rect')
       .attr('class', 'cell')
-      .attr('x',      d => xScale(d.x))
-      .attr('y',      d => yScale(d.y))
+      .attr('x',      d => xScale(d.col))
+      .attr('y',      d => yScale(d.row))
       .attr('width',  xScale.bandwidth())
       .attr('height', yScale.bandwidth())
       .attr('rx', 2)
-      .attr('fill', '#c4c4ff')
+      .attr('fill', '#f7f7f7')
       .style('cursor', 'pointer')
       .on('mouseover', function(event, d) {
         d3.select(this).attr('opacity', 0.75);
-        ttTitle.textContent = `${d.y} · ${d.x}년`;
-        ttBody.textContent  = `값: ${d.value}`;
+        ttTitle.textContent = `${d.row} · ${d.col}`;
+        ttBody.textContent  = `Value: ${d.value}`;
         tooltip.style.opacity = '1';
         tooltip.style.left = (event.clientX + 12) + 'px';
         tooltip.style.top  = (event.clientY - 36) + 'px';
@@ -129,38 +135,34 @@
   /* ── Gradient bar legend ── */
   const legendW = iW;
   const legendH = 8;
-  const legendY = iH + 30;
+  const legendY = iH + 28;
 
   const defs = svg.append('defs');
   const gradId = 'legend-grad';
   const grad = defs.append('linearGradient').attr('id', gradId)
     .attr('x1', '0%').attr('x2', '100%');
 
-  grad.append('stop').attr('offset',   '0%').attr('stop-color', '#c4c4ff');
+  grad.append('stop').attr('offset',   '0%').attr('stop-color', '#EFA33A');
+  grad.append('stop').attr('offset',  '50%').attr('stop-color', '#f7f7f7');
   grad.append('stop').attr('offset', '100%').attr('stop-color', '#6565FF');
 
   const lg = g.append('g').attr('transform', `translate(0,${legendY})`);
 
   lg.append('rect')
     .attr('width', legendW).attr('height', legendH)
-    .attr('rx', 2)
-    .attr('fill', `url(#${gradId})`);
+    .attr('rx', 2).attr('fill', `url(#${gradId})`);
 
-  // -5
-  lg.append('text')
-    .attr('x', 0).attr('y', legendH + 12)
-    .attr('text-anchor', 'start')
-    .style('font-size', '11px').style('fill', '#999999')
-    .style('font-family', "Pretendard,'Noto Sans KR',sans-serif")
-    .text('0');
-
-  // 15
-  lg.append('text')
-    .attr('x', legendW).attr('y', legendH + 12)
-    .attr('text-anchor', 'end')
-    .style('font-size', '11px').style('fill', '#999999')
-    .style('font-family', "Pretendard,'Noto Sans KR',sans-serif")
-    .text('15');
+  [{ x: 0, anchor: 'start', txt: '−10' },
+   { x: legendW / 2, anchor: 'middle', txt: '0' },
+   { x: legendW, anchor: 'end', txt: '10' }]
+    .forEach(d => {
+      lg.append('text')
+        .attr('x', d.x).attr('y', legendH + 12)
+        .attr('text-anchor', d.anchor)
+        .style('font-size', '11px').style('fill', '#999999')
+        .style('font-family', "Pretendard,'Noto Sans KR',sans-serif")
+        .text(d.txt);
+    });
 
   /* ── SVG Export ── */
   function exportSVG(svgEl, fn = 'heatmap.svg') {

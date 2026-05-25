@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>트리맵 — 소액 항목 묶기</title>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Pretendard','Noto Sans KR',sans-serif; background:#fff; padding:40px 20px; }
+    .panels { display:flex; gap:24px; align-items:flex-start; }
+    .panel  { display:inline-block; }
+    .panel-label {
+      font-size: 13px; font-weight: 500; color: #363636;
+      display: flex; align-items: center; gap: 8px;
+      padding-bottom: 8px; margin-bottom: 14px;
+      border-bottom: 1px solid #ddd; width: 236px;
+    }
+    .badge {
+      font-size: 12px; font-weight: 700; border-radius: 4px;
+      padding: 3px 10px; color: #fff;
+      letter-spacing: 0.03em; white-space: nowrap;
+    }
+    .badge-worse  { background: #b8351b; }
+    .badge-better { background: #37760a; }
+    .source { font-size: 12px; color: #999; margin-top: 14px; }
+    #export-btn {
+      display: inline-block; margin-top: 10px; padding: 6px 14px; font-size: 12px;
+      background: #000; color: #fff; border: none; border-radius: 4px; cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+<div class="panels">
+
+  <div class="panel">
+    <p class="panel-label">
+      <span class="badge badge-worse">Worse</span>
+      소액 항목 개별 표시
+    </p>
+    <div id="chart-worse"></div>
+  </div>
+
+  <div class="panel">
+    <p class="panel-label">
+      <span class="badge badge-better">Better</span>
+      소액 항목 기타로 묶기
+    </p>
+    <div id="chart-better"></div>
+  </div>
+
+</div>
+<p class="source">* 예시 데이터 (미국 코로나19 경제 지원금, 단위: 십억 달러)</p>
+<button id="export-btn">SVG 다운로드</button>
+
+<script>
+const FONT  = "Pretendard,'Noto Sans KR',sans-serif";
+const W = 236, H = 200;
+const COLOR = '#bbbbbb';
+const LABEL_COLOR = '#454545';
+
+// ── 데이터 ────────────────────────────────────────────────────
+
+// Worse: 원본 데이터 (43개 항목, 소액 항목 개별 존재)
+const worseItems = [
+  { name: 'Stimulus Checks',         value: 145 },
+  { name: 'Unemployment Benefits',   value: 110 },
+  { name: 'PPP Loans',               value: 120 },
+  { name: 'State Budget Relief',     value:  85 },
+  { name: 'Airlines',                value:  58 },
+  { name: 'Food Assistance',         value:  52 },
+  { name: 'Hotels & Casinos',        value:  42 },
+  { name: 'Restaurant Relief',       value:  38 },
+  { name: 'Housing Assistance',      value:  35 },
+  { name: 'Defense Contractors',     value:  35 },
+  { name: 'Oil & Gas',               value:  32 },
+  { name: 'Healthcare Support',      value:  28 },
+  { name: 'Public Transit',          value:  28 },
+  { name: 'Automotive',              value:  28 },
+  { name: 'Cruise Lines',            value:  22 },
+  { name: 'Local Shops Grants',      value:  22 },
+  { name: 'Education Support',       value:  22 },
+  { name: 'Retail Chains',           value:  20 },
+  { name: 'Real Estate Firms',       value:  18 },
+  { name: 'Independent Contractors', value:  18 },
+  { name: 'Emergency Services',      value:  18 },
+  { name: 'Agricultural Support',    value:  15 },
+  { name: 'Private Equity',          value:  15 },
+  { name: 'Student Loan Relief',     value:  12 },
+  { name: 'Infrastructure Aid',      value:  12 },
+  { name: 'Media Companies',         value:  12 },
+  { name: 'Event Venues',            value:   8 },
+  { name: 'Childcare Support',       value:   8 },
+  { name: 'Sports Industry',         value:   7 },
+  { name: 'Arts Grants',             value:   6 },
+  { name: 'Luxury Brands',           value:   6 },
+  { name: 'Rural Assistance',        value:   6 },
+  { name: 'Public Housing',          value:   6 },
+  { name: 'Theme Parks',             value:   5 },
+  { name: 'Minority-Owned Biz.',     value:   5 },
+  { name: 'Energy Subsidies',        value:   5 },
+  { name: 'Water Utilities',         value:   5 },
+  { name: 'Movie Theaters',          value:   4 },
+  { name: 'Tourism Support',         value:   4 },
+  { name: 'Other Local Aid',         value:   4 },
+  { name: 'Other Household Aid',     value:   4 },
+  { name: 'Other SMB Aid',           value:   3 },
+  { name: 'Misc Corporate Aid',      value:   3 },
+];
+
+// Better: 소액 항목 → 기타로 묶음 (24개 항목)
+const betterItems = [
+  { name: 'Stimulus Checks',         value: 145 },
+  { name: 'Unemployment Benefits',   value: 110 },
+  { name: 'PPP Loans',               value: 120 },
+  { name: 'State Budget Relief',     value:  85 },
+  { name: 'Airlines',                value:  58 },
+  { name: 'Food Assistance',         value:  52 },
+  { name: 'Hotels & Casinos',        value:  42 },
+  { name: 'Restaurant Relief',       value:  38 },
+  { name: 'Defense Contractors',     value:  35 },
+  { name: 'Housing Assistance',      value:  35 },
+  { name: '기타',                    value:  35 },  // Individuals 소액 합산
+  { name: 'Oil & Gas',               value:  32 },
+  { name: 'Healthcare Support',      value:  28 },
+  { name: 'Public Transit',          value:  28 },
+  { name: 'Automotive',              value:  28 },
+  { name: '기타',                    value:  27 },  // State & Local 소액 합산
+  { name: 'Cruise Lines',            value:  22 },
+  { name: 'Local Shops Grants',      value:  22 },
+  { name: 'Education Support',       value:  22 },
+  { name: 'Retail Chains',           value:  20 },
+  { name: 'Independent Contractors', value:  18 },
+  { name: 'Emergency Services',      value:  18 },
+  { name: '기타',                    value:  33 },  // Small Biz 소액 합산
+  { name: '기타',                    value:  78 },  // Large Corp 소액 합산
+];
+
+// ── 트리맵 그리기 ─────────────────────────────────────────────
+function drawTreemap(containerId, items) {
+  const svg = d3.select(`#${containerId}`).append('svg')
+    .attr('width', W).attr('height', H);
+  const g = svg.append('g');
+
+  const root = d3.hierarchy({ children: items }).sum(d => d.value ?? 0);
+  root.sort((a, b) => b.value - a.value);
+
+  d3.treemap()
+    .size([W, H])
+    .paddingInner(2)
+    (root);
+
+  // 직사각형
+  g.selectAll('rect')
+    .data(root.leaves())
+    .join('rect')
+      .attr('x',      d => d.x0).attr('y',      d => d.y0)
+      .attr('width',  d => d.x1 - d.x0)
+      .attr('height', d => d.y1 - d.y0)
+      .attr('fill',   COLOR);
+
+  // 흰 커버 reveal
+  const cover = g.append('rect')
+    .attr('x', 0).attr('y', 0).attr('width', W).attr('height', H)
+    .attr('fill', '#fff');
+  cover.transition().duration(800).ease(d3.easeCubicInOut)
+    .attr('x', W).attr('width', 0);
+}
+
+drawTreemap('chart-worse',  worseItems);
+drawTreemap('chart-better', betterItems);
+
+// ── SVG 내보내기 ─────────────────────────────────────────────
+document.getElementById('export-btn').addEventListener('click', () => {
+  document.querySelectorAll('svg').forEach((svg, i) => {
+    const clone = svg.cloneNode(true);
+    const bg = document.createElementNS('http://www.w3.org/2000/svg','rect');
+    bg.setAttribute('width','100%'); bg.setAttribute('height','100%'); bg.setAttribute('fill','#fff');
+    clone.insertBefore(bg, clone.firstChild);
+    const blob = new Blob([new XMLSerializer().serializeToString(clone)], { type:'image/svg+xml' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `treemap-grouping-${i === 0 ? 'worse' : 'better'}.svg`;
+    a.click(); URL.revokeObjectURL(a.href);
+  });
+});
+</script>
+</body>
+</html>

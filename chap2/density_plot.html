@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>밀도 플롯</title>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Pretendard', 'Noto Sans KR', sans-serif; background: #fff; padding: 40px 20px; }
+    .container { display: inline-block; }
+    h1   { font-size: 17px; line-height: 22px; font-weight: 700; color: #363636; padding-bottom: 5px; }
+    .source { font-size: 13px; line-height: 17px; color: #777; margin-top: 8px; }
+    .tooltip {
+      position: fixed; background: rgba(255,255,255,0.95); border: 1px solid #c6c6c6;
+      border-radius: 4px; padding: 10px 12px; pointer-events: none; opacity: 0;
+      transition: opacity 0.15s; box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    .tooltip-title { font-size: 14px; font-weight: 600; color: #454545; }
+    .tooltip-body  { font-size: 13px; color: #636363; margin-top: 3px; }
+    #export-btn {
+      margin-top: 12px; padding: 8px 16px; font-size: 13px;
+      background: #000; color: #fff; border: none; border-radius: 4px;
+      cursor: pointer; font-family: 'Pretendard', sans-serif;
+    }
+    #export-btn:hover { background: #333; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div style="border: 1px solid #aaa; padding: 16px; display: inline-block;">
+    <h1>값 분포 (밀도)</h1>
+    <div id="chart"></div>
+    <p class="source">출처: 예시 데이터</p>
+  </div><br>
+  <button id="export-btn">SVG 다운로드</button>
+</div>
+
+<div class="tooltip" id="tooltip">
+  <div class="tooltip-title" id="tt-title"></div>
+  <div class="tooltip-body"  id="tt-body"></div>
+</div>
+
+<script>
+  /* ── 원시 데이터 (histogram.html 동일) ── */
+  const raw = [
+    12,14,15,16,17,18,18,19,20,20,
+    21,21,22,22,22,23,23,23,24,24,
+    24,24,25,25,25,25,25,26,26,26,
+    26,26,26,27,27,27,27,27,27,27,
+    28,28,28,28,28,28,29,29,29,29,
+    29,30,30,30,30,30,31,31,31,31,
+    31,32,32,32,32,33,33,33,34,34,
+    34,35,35,35,36,36,37,37,38,38,
+    39,39,40,41,42,43,44,45,46,48
+  ];
+
+  /* ── KDE (Epanechnikov 커널) ── */
+  function epanechnikov(bw) {
+    return v => Math.abs(v /= bw) <= 1 ? 0.75 * (1 - v * v) / bw : 0;
+  }
+  function kde(kernel, xs, data) {
+    return xs.map(x => [x, d3.mean(data, v => kernel(x - v))]);
+  }
+
+  const bandwidth  = 3;
+  const thresholds = d3.range(8, 52, 0.4);
+  const density    = kde(epanechnikov(bandwidth), thresholds, raw);
+
+  /* ── 치수 ── */
+  const W = 236, H = 200;
+  const M = { top: 6, right: 24, bottom: 30, left: 36 };
+  const iW = W - M.left - M.right;
+  const iH = H - M.top  - M.bottom;
+
+  const svg = d3.select('#chart').append('svg')
+    .attr('width', W).attr('height', H).attr('xmlns', 'http://www.w3.org/2000/svg');
+  const g = svg.append('g').attr('transform', `translate(${M.left},${M.top})`);
+
+  /* ── 스케일 ── */
+  const xScale = d3.scaleLinear().domain([10, 50]).range([0, iW]);
+  const yScale = d3.scaleLinear().domain([0, 0.08]).range([iH, 0]);
+  const yTicks = [0, 0.02, 0.04, 0.06];
+  const xTicks = [10, 20, 30, 40, 50];
+
+  /* ── 그리드 (zero 제외 — §15 레이어 순서) ── */
+  g.selectAll('line.grid').data(yTicks.filter(d => d !== 0)).join('line')
+    .attr('class', 'grid')
+    .attr('x1', 0).attr('x2', iW)
+    .attr('y1', d => yScale(d)).attr('y2', d => yScale(d))
+    .style('stroke', '#aaaaaa').style('stroke-dasharray', '2').style('stroke-opacity', 0.4);
+
+  /* ── Y축 ── */
+  g.append('g')
+    .call(
+      d3.axisLeft(yScale)
+        .tickValues(yTicks)
+        .tickSize(0)
+        .tickPadding(6)
+        .tickFormat(d => d === 0 ? '0' : d3.format('.2f')(d))
+    )
+    .call(a => a.select('.domain').remove())
+    .selectAll('text')
+      .style('font-size', '11px').style('fill', '#999999')
+      .style('font-family', "Pretendard,'Noto Sans KR',sans-serif");
+
+  /* ── X축 ── */
+  g.append('g').attr('transform', `translate(0,${iH})`)
+    .call(
+      d3.axisBottom(xScale)
+        .tickValues(xTicks)
+        .tickFormat(d3.format('d'))
+        .tickSize(4)
+        .tickPadding(8)
+    )
+    .call(a => a.select('.domain').remove())
+    .call(a => a.selectAll('.tick line').style('stroke', '#aaaaaa'))
+    .selectAll('text')
+      .style('font-size', '11px').style('fill', '#999999')
+      .style('font-family', "Pretendard,'Noto Sans KR',sans-serif");
+
+  /* ── Area / Line 제너레이터 ── */
+  const areaGen = d3.area()
+    .x(d => xScale(d[0]))
+    .y0(iH)
+    .y1(d => yScale(d[1]))
+    .curve(d3.curveBasis);
+
+  const lineGen = d3.line()
+    .x(d => xScale(d[0]))
+    .y(d => yScale(d[1]))
+    .curve(d3.curveBasis);
+
+  /* ── 클립패스 드로우 애니메이션 ── */
+  const defs = svg.append('defs');
+  const clipRect = defs.append('clipPath').attr('id', 'clip-density')
+    .append('rect')
+      .attr('x', 0).attr('y', 0)
+      .attr('width', 0).attr('height', iH + M.top + M.bottom);
+  clipRect.transition().duration(800).ease(d3.easeCubicInOut)
+    .attr('width', iW + M.right);
+
+  const grp = g.append('g').attr('clip-path', 'url(#clip-density)');
+
+  /* ── Fill area ── */
+  grp.append('path').datum(density)
+    .attr('fill', '#6565FF')
+    .attr('fill-opacity', 0.12)
+    .attr('d', areaGen);
+
+  /* ── Stroke line ── */
+  grp.append('path').datum(density)
+    .attr('fill', 'none')
+    .attr('stroke', '#6565FF')
+    .attr('stroke-width', 2)
+    .attr('stroke-linejoin', 'round')
+    .attr('d', lineGen);
+
+  /* ── zero line (막대/영역 이후 — §15) ── */
+  g.append('line')
+    .attr('x1', 0).attr('x2', iW)
+    .attr('y1', yScale(0)).attr('y2', yScale(0))
+    .style('stroke', '#363636').style('stroke-dasharray', '0').style('stroke-opacity', 0.4);
+
+  /* ── 크로스헤어 & dot ── */
+  const crosshair = g.append('line')
+    .attr('y1', 0).attr('y2', iH)
+    .style('stroke', '#aaaaaa').style('stroke-dasharray', '3').attr('opacity', 0)
+    .attr('pointer-events', 'none');
+
+  const dot = g.append('circle')
+    .attr('r', 4).attr('fill', '#6565FF').attr('opacity', 0)
+    .attr('pointer-events', 'none');
+
+  /* ── 인터랙티브 오버레이 ── */
+  const tooltip = document.getElementById('tooltip');
+  const ttTitle = document.getElementById('tt-title');
+  const ttBody  = document.getElementById('tt-body');
+
+  g.append('rect')
+    .attr('width', iW).attr('height', iH)
+    .attr('fill', 'none').attr('pointer-events', 'all')
+    .style('cursor', 'crosshair')
+    .on('mousemove', function(event) {
+      const [mx] = d3.pointer(event, this);
+      const xVal  = xScale.invert(mx);
+      const near  = density.reduce((a, b) =>
+        Math.abs(b[0] - xVal) < Math.abs(a[0] - xVal) ? b : a);
+      crosshair.attr('x1', mx).attr('x2', mx).attr('opacity', 0.7);
+      dot.attr('cx', xScale(near[0])).attr('cy', yScale(near[1])).attr('opacity', 1);
+      ttTitle.textContent = `값: ${near[0].toFixed(1)}`;
+      ttBody.textContent  = `밀도: ${near[1].toFixed(4)}`;
+      tooltip.style.opacity = '1';
+      tooltip.style.left    = (event.clientX + 12) + 'px';
+      tooltip.style.top     = (event.clientY - 36) + 'px';
+    })
+    .on('mouseleave', function() {
+      crosshair.attr('opacity', 0);
+      dot.attr('opacity', 0);
+      tooltip.style.opacity = '0';
+    });
+
+  /* ── SVG Export ── */
+  function exportSVG(svgEl, fn = 'density_plot.svg') {
+    const st = document.createElement('style');
+    st.textContent = `@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');text{font-family:'Pretendard','Noto Sans KR',sans-serif;}`;
+    svgEl.insertBefore(st, svgEl.firstChild);
+    const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    bg.setAttribute('width', '100%'); bg.setAttribute('height', '100%'); bg.setAttribute('fill', '#fff');
+    svgEl.insertBefore(bg, svgEl.firstChild);
+    const blob = new Blob([new XMLSerializer().serializeToString(svgEl)], { type: 'image/svg+xml' });
+    Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: fn }).click();
+    svgEl.removeChild(st); svgEl.removeChild(bg);
+  }
+  document.getElementById('export-btn').addEventListener('click', () =>
+    exportSVG(document.querySelector('svg')));
+</script>
+</body>
+</html>

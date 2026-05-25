@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>트리맵 — 카테고리 색상 구분</title>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Pretendard','Noto Sans KR',sans-serif; background:#fff; padding:40px 20px; }
+
+    .chart-box {
+      width: 512px;
+      border: 1px solid #e0e0e0;
+      padding: 16px 16px 12px;
+    }
+    .chart-label {
+      font-size: 13px; font-weight: 500; color: #363636;
+      padding-bottom: 8px; margin-bottom: 10px;
+      border-bottom: 1px solid #ddd;
+    }
+    .legend {
+      display: flex; flex-wrap: wrap; gap: 6px 16px; margin-bottom: 10px;
+    }
+    .legend-item {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 13px; color: #363636;
+    }
+    .legend-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+    .chart-footer {
+      display: flex; justify-content: flex-end; align-items: center; margin-top: 10px;
+    }
+    #export-btn {
+      padding: 5px 12px; font-size: 12px; background: #000; color: #fff;
+      border: none; border-radius: 4px; cursor: pointer;
+      font-family: 'Pretendard', sans-serif;
+    }
+    /* 툴팁 */
+    .tooltip {
+      position: fixed; pointer-events: none;
+      background: rgba(255,255,255,0.95); border: 1px solid #e5e5e5;
+      border-radius: 4px; padding: 8px 12px;
+      font-size: 13px; color: #636363;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      display: none;
+    }
+    .tooltip strong { font-size: 14px; color: #363636; display: block; margin-bottom: 2px; }
+  </style>
+</head>
+<body>
+
+<div class="chart-box">
+  <p class="chart-label">카테고리별 색상 구분</p>
+  <div class="legend" id="legend"></div>
+  <div id="chart"></div>
+  <div class="chart-footer">
+    <button id="export-btn">SVG 다운로드</button>
+  </div>
+</div>
+
+<div class="tooltip" id="tooltip">
+  <strong id="tt-name"></strong>
+  <span id="tt-val"></span>
+</div>
+
+<script>
+const FONT = "Pretendard,'Noto Sans KR',sans-serif";
+const W = 480, H = 304;
+
+// ── 데이터 ────────────────────────────────────────────────────
+const GROUPS = [
+  {
+    name: 'Individuals', label: '그룹 1', color: '#6565FF',
+    children: [
+      { name: 'Stimulus Checks',        value: 145 },
+      { name: 'Unemployment Benefits',  value: 110 },
+      { name: 'Food Assistance',        value:  52 },
+      { name: 'Housing Assistance',     value:  35 },
+      { name: 'Healthcare Support',     value:  28 },
+      { name: 'Other Household',        value:  18 },
+      { name: 'Student Loan Relief',    value:  12 },
+    ],
+  },
+  {
+    name: 'Small Businesses', label: '그룹 2', color: '#3b8601',
+    children: [
+      { name: 'PPP Loans',               value: 120 },
+      { name: 'Restaurant Relief',       value:  38 },
+      { name: 'Other SMB Support',       value:  20 },
+      { name: 'Local Shops Grants',      value:  22 },
+      { name: 'Independent Contractors', value:  18 },
+      { name: 'Agricultural Support',    value:  15 },
+    ],
+  },
+  {
+    name: 'Large Corporations', label: '그룹 3', color: '#636363',
+    children: [
+      { name: 'Other Corporate Aid',    value:  68 },
+      { name: 'Airlines',               value:  58 },
+      { name: 'Hotels & Casinos',       value:  42 },
+      { name: 'Defense Contractors',    value:  35 },
+      { name: 'Oil & Gas',              value:  32 },
+      { name: 'Automotive',             value:  28 },
+      { name: 'Cruise Lines',           value:  22 },
+      { name: 'Retail Chains',          value:  20 },
+      { name: 'Real Estate Firms',      value:  18 },
+      { name: 'Private Equity',         value:  15 },
+      { name: 'Media Companies',        value:  12 },
+    ],
+  },
+  {
+    name: 'State & Local Governments', label: '그룹 4', color: '#a4a4a4',
+    children: [
+      { name: 'State Budget Relief', value: 85 },
+      { name: 'Public Transit',      value: 28 },
+      { name: 'Education Support',   value: 22 },
+      { name: 'Emergency Services',  value: 18 },
+      { name: 'Infrastructure Aid',  value: 12 },
+      { name: 'Other Government',    value: 10 },
+    ],
+  },
+];
+
+// ── 범례 ──────────────────────────────────────────────────────
+const legendEl = document.getElementById('legend');
+GROUPS.forEach(g => {
+  const item = document.createElement('div');
+  item.className = 'legend-item';
+  item.innerHTML = `<div class="legend-dot" style="background:${g.color}"></div>${g.label}`;
+  legendEl.appendChild(item);
+});
+
+// ── 트리맵 ────────────────────────────────────────────────────
+const colorMap = Object.fromEntries(GROUPS.map(g => [g.name, g.color]));
+
+const root = d3.hierarchy({ children: GROUPS.map(g => ({ name: g.name, children: g.children })) })
+  .sum(d => d.value ?? 0);
+
+root.sort((a, b) => b.value - a.value);
+
+d3.treemap()
+  .size([W, H])
+  .paddingInner(2)   // 모든 간격 동일 (카테고리 간 = 항목 간 = 2px)
+  (root);
+
+const svg = d3.select('#chart').append('svg').attr('width', W).attr('height', H);
+const g   = svg.append('g');
+
+// 직사각형
+const cells = g.selectAll('g.cell')
+  .data(root.leaves())
+  .join('g')
+    .attr('class', 'cell')
+    .style('cursor', 'default');
+
+cells.append('rect')
+  .attr('x',      d => d.x0).attr('y',      d => d.y0)
+  .attr('width',  d => d.x1 - d.x0)
+  .attr('height', d => d.y1 - d.y0)
+  .attr('fill',   d => colorMap[d.parent.data.name]);
+
+// 툴팁
+const tooltip = document.getElementById('tooltip');
+const ttName  = document.getElementById('tt-name');
+const ttVal   = document.getElementById('tt-val');
+
+cells
+  .on('mousemove', (event, d) => {
+    ttName.textContent = d.data.name;
+    ttVal.textContent  = `$${d.data.value}B · ${d.parent.data.name}`;
+    tooltip.style.display = 'block';
+    tooltip.style.left = (event.clientX + 14) + 'px';
+    tooltip.style.top  = (event.clientY - 28) + 'px';
+  })
+  .on('mouseleave', () => { tooltip.style.display = 'none'; });
+
+// 왼→오른쪽 reveal
+const cover = g.append('rect')
+  .attr('x', 0).attr('y', 0).attr('width', W).attr('height', H)
+  .attr('fill', '#fff');
+cover.transition().duration(800).ease(d3.easeCubicInOut)
+  .attr('x', W).attr('width', 0);
+
+// ── SVG 내보내기 ──────────────────────────────────────────────
+document.getElementById('export-btn').addEventListener('click', () => {
+  const clone = svg.node().cloneNode(true);
+  const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  bg.setAttribute('width','100%'); bg.setAttribute('height','100%'); bg.setAttribute('fill','#fff');
+  clone.insertBefore(bg, clone.firstChild);
+  const blob = new Blob([new XMLSerializer().serializeToString(clone)], { type:'image/svg+xml' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = 'treemap-category-color.svg';
+  a.click(); URL.revokeObjectURL(a.href);
+});
+</script>
+</body>
+</html>

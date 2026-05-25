@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>워플 차트 — 채우는 방향 비교</title>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Pretendard','Noto Sans KR',sans-serif; background:#fff; padding:40px 20px; }
+    .panels { display:flex; gap:24px; align-items:flex-start; }
+    .panel  { display:inline-block; }
+    .panel-label {
+      font-size: 13px; font-weight: 500; color: #363636;
+      display: flex; align-items: center; gap: 8px;
+      padding-bottom: 8px; margin-bottom: 14px;
+      border-bottom: 1px solid #ddd; width: 236px;
+    }
+    .badge {
+      font-size: 12px; font-weight: 700; border-radius: 4px;
+      padding: 3px 10px; color: #fff;
+      letter-spacing: 0.03em; white-space: nowrap;
+    }
+    .badge-worse  { background: #b8351b; }
+    .badge-better { background: #37760a; }
+    .legend {
+      display: flex; gap: 6px 14px; flex-wrap: wrap;
+      margin-top: 10px; width: 236px;
+    }
+    .legend-item {
+      display: flex; align-items: center; gap: 5px;
+      font-size: 12px; color: #636363;
+    }
+    .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .source { font-size: 12px; color: #999; margin-top: 16px; }
+    #export-btn {
+      display: inline-block; margin-top: 10px; padding: 6px 14px; font-size: 12px;
+      background: #000; color: #fff; border: none; border-radius: 4px; cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+<div class="panels">
+
+  <!-- Don't -->
+  <div class="panel">
+    <p class="panel-label">
+      <span class="badge badge-worse">Don't</span>
+      격자 전체에 분산
+    </p>
+    <div id="chart-dont"></div>
+    <div class="legend" id="legend-dont"></div>
+  </div>
+
+  <!-- Do -->
+  <div class="panel">
+    <p class="panel-label">
+      <span class="badge badge-better">Do</span>
+      한 방향으로 순서대로 채움
+    </p>
+    <div id="chart-do"></div>
+    <div class="legend" id="legend-do"></div>
+  </div>
+
+</div>
+
+<p class="source">* 예시 데이터</p>
+<button id="export-btn">SVG 다운로드</button>
+
+<script>
+const FONT = "Pretendard,'Noto Sans KR',sans-serif";
+const W    = 236, H = 170;
+const CELL = 14,  GAP = 2;
+const GRID = CELL * 10 + GAP * 9;
+const OX   = Math.round((W - GRID) / 2);
+const OY   = Math.round((H - GRID) / 2);
+
+// ── 3가지 그룹 ────────────────────────────────────────────────
+const GROUPS = [
+  { label: '그룹 1', color: '#6565FF', count: 52 },
+  { label: '그룹 2', color: '#bbbbbb', count: 29 },
+  { label: '그룹 3', color: '#777777', count: 19 },
+];
+
+// Do: 순서대로 채움 → 명확한 가로 띠
+const doCells = GROUPS.flatMap(g => Array(g.count).fill(g.color));
+
+// Don't: LCG 셔플로 분산
+function seededShuffle(arr, seed) {
+  const result = [...arr];
+  let s = seed;
+  for (let i = result.length - 1; i > 0; i--) {
+    s = (s * 1103515245 + 12345) & 0x7fffffff;
+    const j = s % (i + 1);
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+const dontCells = seededShuffle(doCells, 7);
+
+// ── 워플 차트 그리기 ──────────────────────────────────────────
+function drawWaffle(containerId, cells) {
+  const svg = d3.select(`#${containerId}`).append('svg')
+    .attr('width', W).attr('height', H);
+
+  svg.selectAll('rect')
+    .data(cells)
+    .join('rect')
+      .attr('x',      (d, i) => OX + (i % 10) * (CELL + GAP))
+      .attr('y',      (d, i) => OY + Math.floor(i / 10) * (CELL + GAP))
+      .attr('width',  CELL)
+      .attr('height', CELL)
+      .attr('rx', 2).attr('ry', 2)
+      .attr('fill',    d => d)
+      .attr('opacity', 0)
+      .transition()
+      .delay((d, i) => i * 8)
+      .duration(150)
+      .attr('opacity', 1);
+}
+
+// ── 범례 ──────────────────────────────────────────────────────
+function buildLegend(id) {
+  const el = document.getElementById(id);
+  GROUPS.forEach(g => {
+    const item = document.createElement('div');
+    item.className = 'legend-item';
+    item.innerHTML = `<div class="legend-dot" style="background:${g.color}"></div>${g.label}`;
+    el.appendChild(item);
+  });
+}
+
+drawWaffle('chart-dont', dontCells);
+drawWaffle('chart-do',   doCells);
+buildLegend('legend-dont');
+buildLegend('legend-do');
+
+// ── SVG 내보내기 ──────────────────────────────────────────────
+document.getElementById('export-btn').addEventListener('click', () => {
+  document.querySelectorAll('svg').forEach((svg, i) => {
+    const clone = svg.cloneNode(true);
+    const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    bg.setAttribute('width','100%'); bg.setAttribute('height','100%'); bg.setAttribute('fill','#fff');
+    clone.insertBefore(bg, clone.firstChild);
+    const blob = new Blob([new XMLSerializer().serializeToString(clone)], { type:'image/svg+xml' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `waffle-direction-${i === 0 ? 'dont' : 'do'}.svg`;
+    a.click(); URL.revokeObjectURL(a.href);
+  });
+});
+</script>
+</body>
+</html>

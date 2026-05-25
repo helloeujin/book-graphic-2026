@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>생키 다이어그램</title>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <script src="https://cdn.jsdelivr.net/npm/d3-sankey@0.12.3/dist/d3-sankey.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Pretendard', 'Noto Sans KR', sans-serif; background: #fff; padding: 40px 20px; }
+    .container { display: inline-block; }
+    h1   { font-size: 17px; line-height: 22px; font-weight: 700; color: #363636; padding-bottom: 5px; }
+    .source { font-size: 13px; line-height: 17px; color: #777; margin-top: 8px; }
+    .tooltip {
+      position: fixed; background: rgba(255,255,255,0.95); border: 1px solid #c6c6c6;
+      border-radius: 4px; padding: 10px 12px; pointer-events: none; opacity: 0;
+      transition: opacity 0.15s; box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    .tooltip-title { font-size: 14px; font-weight: 600; color: #454545; }
+    .tooltip-body  { font-size: 13px; color: #636363; margin-top: 3px; }
+    #export-btn {
+      margin-top: 12px; padding: 8px 16px; font-size: 13px;
+      background: #000; color: #fff; border: none; border-radius: 4px;
+      cursor: pointer; font-family: 'Pretendard', sans-serif;
+    }
+    #export-btn:hover { background: #333; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div style="border: 1px solid #aaa; padding: 16px; display: inline-block;">
+    <h1>사용자 흐름</h1>
+    <div id="chart"></div>
+    <p class="source">출처: 예시 데이터</p>
+  </div><br>
+  <button id="export-btn">SVG 다운로드</button>
+</div>
+
+<div class="tooltip" id="tooltip">
+  <div class="tooltip-title" id="tt-title"></div>
+  <div class="tooltip-body"  id="tt-body"></div>
+</div>
+
+<script>
+  /* ── 치수 ── */
+  const W  = 236, H = 200;
+  const M  = { top: 6, right: 6, bottom: 6, left: 6 };
+  const iW = W - M.left - M.right;   // 224
+  const iH = H - M.top  - M.bottom;  // 188
+
+  const svg = d3.select('#chart').append('svg')
+    .attr('width', W).attr('height', H).attr('xmlns', 'http://www.w3.org/2000/svg');
+  const g = svg.append('g').attr('transform', `translate(${M.left},${M.top})`);
+
+  /* ── 데이터 — source/target 은 name 문자열로 통일 ── */
+  const graph = {
+    nodes: [
+      { name: 'All Users'    },
+      { name: 'Active Users' },
+      { name: 'Subscribed'   },
+      { name: 'Trial'        },
+      { name: 'Churned'      }
+    ],
+    links: [
+      { source: 'All Users',    target: 'Active Users', value: 100 },
+      { source: 'Active Users', target: 'Subscribed',   value:  55 },
+      { source: 'Active Users', target: 'Trial',         value:  15 },
+      { source: 'Active Users', target: 'Churned',       value:  30 }
+    ]
+  };
+
+  /* ── 노드 색상 ── */
+  const nodeColor = {
+    'All Users'   : '#aaaaaa',
+    'Active Users': '#aaaaaa',
+    'Subscribed'  : '#6565FF',
+    'Trial'       : '#aaaaaa',
+    'Churned'     : '#aaaaaa'
+  };
+
+  /* ── Sankey 레이아웃 ── */
+  const sankeyGen = d3.sankey()
+    .nodeId(d => d.name)
+    .nodeWidth(10)
+    .nodePadding(12)
+    .extent([[0, 0], [iW, iH]]);
+
+  const { nodes: sNodes, links: sLinks } = sankeyGen({
+    nodes: graph.nodes.map(d => ({ ...d })),
+    links: graph.links.map(d => ({ ...d }))
+  });
+
+  /* ── 툴팁 ── */
+  const tooltip = document.getElementById('tooltip');
+  const ttTitle = document.getElementById('tt-title');
+  const ttBody  = document.getElementById('tt-body');
+
+  /* ── 링크 ── */
+  g.append('g').attr('fill', 'none')
+    .selectAll('path')
+    .data(sLinks).join('path')
+      .attr('d', d3.sankeyLinkHorizontal())
+      .attr('stroke', d => nodeColor[d.source.name])
+      .attr('stroke-width', d => Math.max(1, d.width))
+      .attr('stroke-opacity', 0.18)
+      .style('cursor', 'pointer')
+      .on('mouseover', function(event, d) {
+        d3.select(this).attr('stroke-opacity', 0.38);
+        ttTitle.textContent = `${d.source.name} → ${d.target.name}`;
+        ttBody.textContent  = `값: ${d.value}`;
+        tooltip.style.opacity = '1';
+        tooltip.style.left = (event.clientX + 12) + 'px';
+        tooltip.style.top  = (event.clientY - 36) + 'px';
+      })
+      .on('mouseleave', function(event, d) {
+        d3.select(this).attr('stroke-opacity', 0.18);
+        tooltip.style.opacity = '0';
+      });
+
+  /* ── 노드 ── */
+  const nodeG = g.append('g');
+
+  nodeG.selectAll('rect')
+    .data(sNodes).join('rect')
+      .attr('x', d => d.x0)
+      .attr('y', d => d.y0)
+      .attr('width',  d => d.x1 - d.x0)
+      .attr('height', d => Math.max(1, d.y1 - d.y0))
+      .attr('fill', d => nodeColor[d.name])
+      .attr('rx', 2)
+      .style('cursor', 'pointer')
+      .on('mouseover', function(event, d) {
+        d3.select(this).attr('opacity', 0.7);
+        ttTitle.textContent = d.name;
+        ttBody.textContent  = `값: ${d.value}`;
+        tooltip.style.opacity = '1';
+        tooltip.style.left = (event.clientX + 12) + 'px';
+        tooltip.style.top  = (event.clientY - 36) + 'px';
+      })
+      .on('mouseleave', function() {
+        d3.select(this).attr('opacity', 1);
+        tooltip.style.opacity = '0';
+      });
+
+
+
+  /* ── SVG Export ── */
+  function exportSVG(svgEl, fn = 'sankey.svg') {
+    const st = document.createElement('style');
+    st.textContent = `@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');text{font-family:'Pretendard','Noto Sans KR',sans-serif;}`;
+    svgEl.insertBefore(st, svgEl.firstChild);
+    const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    bg.setAttribute('width', '100%'); bg.setAttribute('height', '100%'); bg.setAttribute('fill', '#fff');
+    svgEl.insertBefore(bg, svgEl.firstChild);
+    const blob = new Blob([new XMLSerializer().serializeToString(svgEl)], { type: 'image/svg+xml' });
+    Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: fn }).click();
+    svgEl.removeChild(st); svgEl.removeChild(bg);
+  }
+  document.getElementById('export-btn').addEventListener('click', () => exportSVG(document.querySelector('svg')));
+</script>
+</body>
+</html>
