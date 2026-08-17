@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>인구 피라미드 — 한국 2024</title>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Pretendard','Noto Sans KR',sans-serif; background:#fff; padding:40px 20px; }
+
+    .chart-box {
+      width: 512px;
+      border: 1px solid #e0e0e0;
+      padding: 16px 16px 12px;
+    }
+    .chart-label {
+      font-size: 13px; font-weight: 500; color: #363636;
+      padding-bottom: 8px; margin-bottom: 10px;
+      border-bottom: 1px solid #ddd;
+    }
+    .legend {
+      display: flex; gap: 6px 16px; margin-bottom: 10px;
+    }
+    .legend-item {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 13px; color: #363636;
+    }
+    .legend-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+    .chart-footer {
+      display: flex; justify-content: flex-end; margin-top: 10px;
+    }
+    #export-btn {
+      padding: 5px 12px; font-size: 12px; background: #000; color: #fff;
+      border: none; border-radius: 4px; cursor: pointer;
+      font-family: 'Pretendard', sans-serif;
+    }
+    .tooltip {
+      position: fixed; pointer-events: none;
+      background: rgba(255,255,255,0.95); border: 1px solid #e5e5e5;
+      border-radius: 4px; padding: 8px 12px;
+      font-size: 13px; color: #636363;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      display: none;
+    }
+    .tooltip strong { font-size: 14px; color: #363636; display: block; margin-bottom: 2px; }
+    .source { font-size: 13px; line-height: 17px; font-weight: 400; color: #777777; margin-top: 8px; }
+    .source a { color: #777777; text-underline-offset: 2px; }
+    .source a:hover { color: #454545; }
+  </style>
+</head>
+<body>
+
+<div class="chart-box">
+  <p class="chart-label">인구 피라미드</p>
+  <div class="legend">
+    <div class="legend-item">
+      <div class="legend-dot" style="background:#6565FF"></div>남성
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:#aaaaaa"></div>여성
+    </div>
+  </div>
+  <div id="chart"></div>
+  <p class="source">출처: <a href="https://kosis.kr/statHtml/statHtml.do?orgId=101&tblId=DT_1BPA001" target="_blank" rel="noopener">통계청 (2022)</a></p>
+  <div class="chart-footer">
+    <button id="export-btn">SVG 다운로드</button>
+  </div>
+</div>
+
+<div class="tooltip" id="tooltip">
+  <strong id="tt-title"></strong>
+  <span id="tt-body"></span>
+</div>
+
+<script>
+// ── 색상 ─────────────────────────────────────────────────────
+const MALE_COLOR   = '#6565FF';
+const FEMALE_COLOR = '#aaaaaa';
+
+// ── 치수 ─────────────────────────────────────────────────────
+const W  = 480, H  = 330;
+const M  = { top: 12, right: 20, bottom: 38, left: 48 };
+const iW = W - M.left - M.right;  // 412
+const iH = H - M.top  - M.bottom; // 294
+
+// 남성/여성 구역 너비 (대칭)
+const MALE_W   = Math.floor(iW / 2);   // 206
+const FEMALE_W = iW - MALE_W;          // 206
+const cx = MALE_W;                      // 중앙선 x좌표
+
+const MAX_VAL = 240; // x축 최대값 (만 명)
+
+// ── 데이터 ─────────────────────────────────────────────────
+// 출처: 통계청, 성 및 연령별 추계인구(5세별) / 전국 (단위: 만 명, 2022년 기준)
+const DATA = [
+  { age: '0-4',   male:  76.6, female:  72.8 },
+  { age: '5-9',   male: 109.7, female: 104.5 },
+  { age: '10-14', male: 118.9, female: 112.2 },
+  { age: '15-19', male: 118.4, female: 110.4 },
+  { age: '20-24', male: 162.0, female: 148.5 },
+  { age: '25-29', male: 193.4, female: 169.5 },
+  { age: '30-34', male: 179.7, female: 159.4 },
+  { age: '35-39', male: 180.9, female: 167.4 },
+  { age: '40-44', male: 206.7, female: 196.8 },
+  { age: '45-49', male: 206.2, female: 200.0 },
+  { age: '50-54', male: 225.8, female: 223.1 },
+  { age: '55-59', male: 206.8, female: 204.6 },
+  { age: '60-64', male: 204.3, female: 210.5 },
+  { age: '65-69', male: 147.8, female: 158.6 },
+  { age: '70-74', male: 101.3, female: 115.2 },
+  { age: '75-79', male:  69.7, female:  90.0 },
+  { age: '80-84', male:  47.6, female:  76.2 },
+  { age: '85-89', male:  20.1, female:  44.5 },
+  { age: '90+',   male:   6.0, female:  21.1 },
+];
+
+// ── 스케일 ──────────────────────────────────────────────────
+// xMale: 값 0 → cx(중앙), 값 MAX → 0(좌측 끝)
+const xMale = d3.scaleLinear()
+  .domain([0, MAX_VAL])
+  .range([cx, 0]);
+
+// xFemale: 값 0 → cx(중앙), 값 MAX → iW(우측 끝)
+const xFemale = d3.scaleLinear()
+  .domain([0, MAX_VAL])
+  .range([cx, iW]);
+
+// y: 연령대(밴드), 0~4가 아래, 90+가 위
+const y = d3.scaleBand()
+  .domain(DATA.map(d => d.age))
+  .range([iH, 0])   // 어린 연령 → 하단, 고령 → 상단
+  .padding(0.12);
+
+// ── SVG ─────────────────────────────────────────────────────
+const svg = d3.select('#chart')
+  .append('svg')
+  .attr('width', W)
+  .attr('height', H);
+
+const g = svg.append('g')
+  .attr('transform', `translate(${M.left},${M.top})`);
+
+// ── 그리드선 ─────────────────────────────────────────────────
+const TICKS = [50, 100, 150, 200];
+
+TICKS.forEach(v => {
+  // 왼쪽(남성) 그리드
+  g.append('line')
+    .attr('x1', xMale(v)).attr('x2', xMale(v))
+    .attr('y1', 0).attr('y2', iH)
+    .style('stroke', '#aaaaaa')
+    .style('stroke-dasharray', '2')
+    .style('stroke-opacity', 0.4);
+  // 오른쪽(여성) 그리드
+  g.append('line')
+    .attr('x1', xFemale(v)).attr('x2', xFemale(v))
+    .attr('y1', 0).attr('y2', iH)
+    .style('stroke', '#aaaaaa')
+    .style('stroke-dasharray', '2')
+    .style('stroke-opacity', 0.4);
+});
+
+// 중앙 기준선
+g.append('line')
+  .attr('x1', cx).attr('x2', cx)
+  .attr('y1', 0).attr('y2', iH)
+  .style('stroke', '#636363')
+  .style('stroke-opacity', 0.35)
+  .style('stroke-width', 1);
+
+// ── 막대 (남성) ──────────────────────────────────────────────
+const maleBars = g.selectAll('.bar-male')
+  .data(DATA)
+  .join('rect')
+  .attr('class', 'bar-male')
+  .attr('x', cx)           // 애니메이션 시작: 중앙에서
+  .attr('y', d => y(d.age))
+  .attr('width', 0)        // 애니메이션 시작: 너비 0
+  .attr('height', y.bandwidth())
+  .attr('fill', MALE_COLOR)
+  .style('cursor', 'default');
+
+// ── 막대 (여성) ──────────────────────────────────────────────
+const femaleBars = g.selectAll('.bar-female')
+  .data(DATA)
+  .join('rect')
+  .attr('class', 'bar-female')
+  .attr('x', cx)
+  .attr('y', d => y(d.age))
+  .attr('width', 0)
+  .attr('height', y.bandwidth())
+  .attr('fill', FEMALE_COLOR)
+  .style('cursor', 'default');
+
+// ── 애니메이션: 중앙 → 바깥으로 ─────────────────────────────
+maleBars
+  .transition().duration(800).ease(d3.easeCubicInOut)
+  .attr('x', d => xMale(d.male))
+  .attr('width', d => cx - xMale(d.male));
+
+femaleBars
+  .transition().duration(800).ease(d3.easeCubicInOut)
+  .attr('width', d => xFemale(d.female) - cx);
+
+// ── Y축 (연령 레이블) ────────────────────────────────────────
+g.append('g')
+  .call(
+    d3.axisLeft(y)
+      .tickSize(0)
+      .tickPadding(6)
+  )
+  .call(a => a.select('.domain').remove())
+  .selectAll('text')
+    .style('font-size', '11px')
+    .style('fill', '#999999')
+    .style('font-family', "Pretendard,'Noto Sans KR',sans-serif");
+
+// ── X축 하단 ─────────────────────────────────────────────────
+// 왼쪽(남성) X축
+g.append('g')
+  .attr('transform', `translate(0,${iH})`)
+  .call(
+    d3.axisBottom(xMale)
+      .tickValues(TICKS)
+      .tickFormat(d => `${d}`)
+      .tickSize(4)
+      .tickPadding(6)
+  )
+  .call(a => a.select('.domain').remove())
+  .call(a => a.selectAll('.tick line').style('stroke', '#aaaaaa'))
+  .selectAll('text')
+    .style('font-size', '12px')
+    .style('fill', '#999999')
+    .style('font-family', "Pretendard,'Noto Sans KR',sans-serif");
+
+// 오른쪽(여성) X축
+g.append('g')
+  .attr('transform', `translate(0,${iH})`)
+  .call(
+    d3.axisBottom(xFemale)
+      .tickValues(TICKS)
+      .tickFormat(d => `${d}`)
+      .tickSize(4)
+      .tickPadding(6)
+  )
+  .call(a => a.select('.domain').remove())
+  .call(a => a.selectAll('.tick line').style('stroke', '#aaaaaa'))
+  .selectAll('text')
+    .style('font-size', '12px')
+    .style('fill', '#999999')
+    .style('font-family', "Pretendard,'Noto Sans KR',sans-serif");
+
+// X축 단위 레이블 "만 명"
+g.append('text')
+  .attr('x', cx)
+  .attr('y', iH + 32)
+  .attr('text-anchor', 'middle')
+  .style('font-size', '11px')
+  .style('fill', '#999999')
+  .style('font-family', "Pretendard,'Noto Sans KR',sans-serif")
+  .text('만 명');
+
+// ── 툴팁 ─────────────────────────────────────────────────────
+const tooltip = document.getElementById('tooltip');
+const ttTitle  = document.getElementById('tt-title');
+const ttBody   = document.getElementById('tt-body');
+
+function showTT(event, d, sex) {
+  const val     = sex === 'male' ? d.male : d.female;
+  const label   = sex === 'male' ? '남성' : '여성';
+  ttTitle.textContent = `${d.age}세`;
+  ttBody.textContent  = `${label}: 약 ${val.toFixed(1)}만 명`;
+  tooltip.style.display = 'block';
+  tooltip.style.left    = (event.clientX + 14) + 'px';
+  tooltip.style.top     = (event.clientY - 28) + 'px';
+}
+function hideTT() { tooltip.style.display = 'none'; }
+
+g.selectAll('.bar-male')
+  .on('mousemove', (e, d) => showTT(e, d, 'male'))
+  .on('mouseleave', hideTT);
+g.selectAll('.bar-female')
+  .on('mousemove', (e, d) => showTT(e, d, 'female'))
+  .on('mouseleave', hideTT);
+
+// ── SVG 내보내기 ──────────────────────────────────────────────
+document.getElementById('export-btn').addEventListener('click', () => {
+  const clone = svg.node().cloneNode(true);
+  const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  bg.setAttribute('width', '100%'); bg.setAttribute('height', '100%'); bg.setAttribute('fill', '#fff');
+  clone.insertBefore(bg, clone.firstChild);
+  const blob = new Blob([new XMLSerializer().serializeToString(clone)], { type: 'image/svg+xml' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = 'population-pyramid-korea.svg';
+  a.click(); URL.revokeObjectURL(a.href);
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>값이 없는 것과 0을 구분하기</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Pretendard', 'Noto Sans KR', sans-serif;
+    background: #fff;
+    padding: 40px 20px;
+  }
+  .container { max-width: 620px; margin: 0; }
+
+  .compare-wrap {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  .panel {
+    flex: 1 1 236px;
+  }
+  .panel-header {
+    font-size: 13px;
+    font-weight: 500;
+    color: #363636;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-bottom: 8px;
+    margin-bottom: 14px;
+    border-bottom: 1px solid #ddd;
+  }
+  .badge {
+    font-size: 12px;
+    font-weight: 700;
+    border-radius: 4px;
+    padding: 3px 10px;
+    color: #ffffff;
+    letter-spacing: 0.03em;
+    flex-shrink: 0;
+  }
+  .badge-better { background: #37760a; }
+  .badge-worse  { background: #b8351b; }
+
+  .legend {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-top: 10px;
+    font-size: 11px;
+    color: #999999;
+  }
+  .legend-item { display: flex; align-items: center; gap: 5px; }
+  .legend-swatch { width: 14px; height: 14px; border-radius: 2px; display: inline-block; }
+
+  .result {
+    font-size: 13px;
+    line-height: 17px;
+    font-weight: 400;
+    color: #363636;
+    margin-top: 10px;
+  }
+  .result strong { font-weight: 700; }
+
+  .note, .source {
+    font-size: 13px;
+    line-height: 17px;
+    font-weight: 400;
+    color: #777777;
+    margin-top: 16px;
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <div class="compare-wrap">
+      <div class="panel">
+        <div class="panel-header">
+          <span class="badge badge-worse">Worse</span>
+          <span class="panel-desc">결측값을 0과 같은 색으로</span>
+        </div>
+        <div id="chart-worse"></div>
+        <p class="result"><strong>결과:</strong> 주문이 0건인 시간과 데이터가 없는 시간이 같은 색이라 서로 구분되지 않습니다.</p>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <span class="badge badge-better">Better</span>
+          <span class="panel-desc">결측값은 사선 패턴으로</span>
+        </div>
+        <div id="chart-better"></div>
+        <div class="legend">
+          <span class="legend-item"><span class="legend-swatch" style="background:#f0efff;border:1px solid #eee;"></span>주문 0건</span>
+          <span class="legend-item"><span class="legend-swatch" id="legend-missing"></span>데이터 없음</span>
+        </div>
+        <p class="result"><strong>결과:</strong> 사선으로 표시된 결측값이 실제 0건과 뚜렷이 구분됩니다.</p>
+      </div>
+    </div>
+
+    <p class="note">* 카페 시간대별 주문 건수를 나타낸 가상 데이터입니다 (실제 통계 아님)</p>
+  </div>
+
+<script>
+// ── 데이터 (시간대 × 요일 주문 건수, null = 데이터 없음) ─────────
+const rows = ['09시', '11시', '13시', '15시', '17시', '19시', '21시'];
+const cols = ['월', '화', '수', '목', '금', '토', '일'];
+
+// null = 결측(미수집), 0 = 실제 주문 0건
+const raw = {
+  '09시': [ 12, 14, 11, 13, 18,  9, null],
+  '11시': [ 28, 31, 27, 30, 42, 38, null],
+  '13시': [ 35, 33, 36, 38, 51, 55,  40],
+  '15시': [ 22, 24, 21, 26, 33, 44,  35],
+  '17시': [ 18, 17, 19, 20, 29, 31,  24],
+  '19시': [  8,  6,  0,  9, 15, 22,  16],
+  '21시': [  0,  0, null, 0,  4, 11, null]
+};
+
+const data = [];
+rows.forEach(r => {
+  cols.forEach((c, i) => data.push({ row: r, col: c, value: raw[r][i] }));
+});
+
+const maxVal = d3.max(data, d => d.value == null ? -Infinity : d.value);
+const color = d3.scaleSequential().domain([0, maxVal])
+  .interpolator(d3.interpolateLab('#f0efff', '#4a4ae8'));
+
+const MISSING_GRAY = '#e6e6e6';   // Worse: 0과 사실상 구분 안 되는 연한 회색 취급
+
+// ── 치수 ────────────────────────────────────────────────────────
+const W = 298, H = 208;
+const margin = { top: 20, right: 4, bottom: 4, left: 38 };
+const iW = W - margin.left - margin.right;
+const iH = H - margin.top - margin.bottom;
+
+function drawHeatmap(selector, { markMissing }) {
+  const svg = d3.select(selector).append('svg').attr('width', W).attr('height', H);
+
+  // 사선 패턴 정의 (Better 전용)
+  if (markMissing) {
+    const defs = svg.append('defs');
+    const p = defs.append('pattern')
+      .attr('id', 'hatch')
+      .attr('width', 5).attr('height', 5)
+      .attr('patternUnits', 'userSpaceOnUse')
+      .attr('patternTransform', 'rotate(45)');
+    p.append('rect').attr('width', 5).attr('height', 5).attr('fill', '#ffffff');
+    p.append('line')
+      .attr('x1', 0).attr('y1', 0).attr('x2', 0).attr('y2', 5)
+      .attr('stroke', '#bbbbbb').attr('stroke-width', 2);
+  }
+
+  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+  const xb = d3.scaleBand().domain(cols).range([0, iW]).padding(0.05);
+  const yb = d3.scaleBand().domain(rows).range([0, iH]).padding(0.05);
+
+  const cells = g.append('g').selectAll('g').data(data).join('g');
+
+  cells.append('rect')
+    .attr('x', d => xb(d.col))
+    .attr('y', d => yb(d.row))
+    .attr('width', xb.bandwidth())
+    .attr('height', yb.bandwidth())
+    .attr('fill', d => {
+      if (d.value == null) {
+        // Worse: 결측을 0과 사실상 같은 연한 색으로 / Better: 사선 패턴
+        return markMissing ? 'url(#hatch)' : color(0);
+      }
+      return color(d.value);
+    })
+    .attr('stroke', d => (markMissing && d.value == null) ? '#dddddd' : 'none')
+    .attr('stroke-width', 0.5);
+
+  // 행 레이블
+  g.append('g').selectAll('text').data(rows).join('text')
+    .attr('x', -8)
+    .attr('y', d => yb(d) + yb.bandwidth() / 2)
+    .attr('dy', '0.32em')
+    .style('text-anchor', 'end')
+    .style('font-size', '11px')
+    .style('fill', '#999999')
+    .text(d => d);
+
+  // 열 레이블 (차트 위)
+  g.append('g').selectAll('text').data(cols).join('text')
+    .attr('x', d => xb(d) + xb.bandwidth() / 2)
+    .attr('y', -7)
+    .style('text-anchor', 'middle')
+    .style('font-size', '11px')
+    .style('fill', '#999999')
+    .text(d => d);
+}
+
+drawHeatmap('#chart-worse', { markMissing: false });
+drawHeatmap('#chart-better', { markMissing: true });
+
+// 범례 사선 스와치
+{
+  const svg = d3.select('#legend-missing').append('svg')
+    .attr('width', 14).attr('height', 14).style('display', 'block');
+  const defs = svg.append('defs');
+  const p = defs.append('pattern')
+    .attr('id', 'hatch-legend')
+    .attr('width', 5).attr('height', 5)
+    .attr('patternUnits', 'userSpaceOnUse')
+    .attr('patternTransform', 'rotate(45)');
+  p.append('rect').attr('width', 5).attr('height', 5).attr('fill', '#ffffff');
+  p.append('line').attr('x1', 0).attr('y1', 0).attr('x2', 0).attr('y2', 5)
+    .attr('stroke', '#bbbbbb').attr('stroke-width', 2);
+  svg.append('rect')
+    .attr('width', 14).attr('height', 14)
+    .attr('rx', 2)
+    .attr('fill', 'url(#hatch-legend)')
+    .attr('stroke', '#dddddd').attr('stroke-width', 0.5);
+}
+</script>
+</body>
+</html>

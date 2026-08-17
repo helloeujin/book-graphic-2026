@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>비스웜 — 카테고리 색 인코딩</title>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Pretendard', 'Noto Sans KR', sans-serif; background: #fff; padding: 40px 20px; }
+
+    .chart-box {
+      display: inline-block;
+      width: 532px;
+      border: 1px solid #e0e0e0;
+      padding: 16px 16px 12px;
+    }
+    .chart-label {
+      font-size: 13px; font-weight: 500; color: #363636;
+      padding-bottom: 8px; margin-bottom: 10px;
+      border-bottom: 1px solid #ddd;
+    }
+    .legend {
+      display: flex; gap: 6px 16px; margin-bottom: 10px;
+    }
+    .legend-item {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 13px; color: #363636;
+    }
+    .legend-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+    .chart-footer {
+      display: flex; justify-content: flex-end; align-items: center; margin-top: 10px;
+    }
+    #export-btn {
+      padding: 5px 12px; font-size: 12px; background: #000; color: #fff;
+      border: none; border-radius: 4px; cursor: pointer;
+      font-family: 'Pretendard', sans-serif;
+    }
+    #export-btn:hover { background: #333; }
+    .tooltip {
+      position: fixed; pointer-events: none;
+      background: rgba(255,255,255,0.95); border: 1px solid #c6c6c6;
+      border-radius: 4px; padding: 8px 12px;
+      font-size: 13px; color: #636363;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      display: none;
+    }
+    .tooltip strong { font-size: 14px; color: #454545; display: block; margin-bottom: 2px; }
+  </style>
+</head>
+<body>
+
+<div class="chart-box">
+  <p class="chart-label">색으로 카테고리 분포를 직관적으로 보여주기</p>
+  <div class="legend">
+    <div class="legend-item">
+      <div class="legend-dot" style="background:#6565FF"></div>그룹 1
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:#a4a4a4"></div>그룹 2
+    </div>
+  </div>
+  <div id="chart"></div>
+  <div class="chart-footer">
+    <button id="export-btn">SVG 다운로드</button>
+  </div>
+</div>
+
+<div class="tooltip" id="tooltip">
+  <strong id="tt-name"></strong>
+  <span id="tt-val"></span>
+</div>
+
+<script>
+  const FONT = "Pretendard,'Noto Sans KR',sans-serif";
+  const COLOR = { 1: '#6565FF', 2: '#a4a4a4' };
+  const groups = ['A', 'B', 'C'];
+
+  /* ── 카테고리 비율 (그룹별 그룹1 비율) ── */
+  const catRatio = { A: 0.75, B: 0.40, C: 0.10 };
+
+  /* ── 데이터 ── */
+  const rawData = [];
+  const bases   = { A: 28, B: 42, C: 18 };
+  const spreads = { A: 14, B: 17, C: 11 };
+
+  groups.forEach(grp => {
+    for (let i = 0; i < 40; i++) {
+      const v = bases[grp]
+        + Math.sin(i * 1.9 + grp.charCodeAt(0) * 0.4) * spreads[grp]
+        + Math.cos(i * 0.7) * (spreads[grp] * 0.4);
+      /* 13은 40과 서로소 → 인덱스를 고르게 섞어 카테고리 분산 */
+      const mixIdx = (i * 13) % 40;
+      const cat = mixIdx / 40 < catRatio[grp] ? 1 : 2;
+      rawData.push({ group: grp, value: Math.max(4, Math.min(68, v)), cat });
+    }
+  });
+
+  /* ── 중앙값 ── */
+  function calcMedian(arr) {
+    const s = [...arr].sort((a, b) => a - b);
+    const m = Math.floor(s.length / 2);
+    return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+  }
+  const medians = {};
+  groups.forEach(grp => {
+    medians[grp] = calcMedian(rawData.filter(d => d.group === grp).map(d => d.value));
+  });
+
+  /* ── 치수 ── */
+  const W  = 500, H = 300;
+  const M  = { top: 20, right: 14, bottom: 30, left: 36 };
+  const iW = W - M.left - M.right;   // 450
+  const iH = H - M.top  - M.bottom;  // 250
+
+  const svg = d3.select('#chart').append('svg')
+    .attr('width', W).attr('height', H).attr('xmlns', 'http://www.w3.org/2000/svg');
+  const g = svg.append('g').attr('transform', `translate(${M.left},${M.top})`);
+
+  /* ── 스케일 ── */
+  const xScale = d3.scaleLinear().domain([0, 70]).range([0, iW]);
+  const yScale = d3.scaleBand().domain(groups).range([0, iH]).padding(0.3);
+  const xTicks = [0, 20, 40, 60];
+
+  /* ── 그리드 ── */
+  g.selectAll('line.grid').data(xTicks.slice(1)).join('line')
+    .attr('class', 'grid')
+    .attr('x1', d => xScale(d)).attr('x2', d => xScale(d))
+    .attr('y1', 0).attr('y2', iH)
+    .style('stroke', '#aaaaaa').style('stroke-dasharray', '2').style('stroke-opacity', 0.4);
+
+  /* ── zero line ── */
+  g.append('line')
+    .attr('x1', xScale(0)).attr('x2', xScale(0))
+    .attr('y1', 0).attr('y2', iH)
+    .style('stroke', '#363636').style('stroke-opacity', 0.4);
+
+  /* ── X축 ── */
+  g.append('g').attr('transform', `translate(0,${iH})`)
+    .call(d3.axisBottom(xScale).tickValues(xTicks).tickSize(0).tickPadding(8))
+    .call(a => a.select('.domain').remove())
+    .selectAll('text')
+      .style('font-size', '13px').style('fill', '#999999').style('font-family', FONT);
+
+  /* ── Y축 ── */
+  g.append('g')
+    .call(d3.axisLeft(yScale).tickSize(0).tickPadding(10))
+    .call(a => a.select('.domain').remove())
+    .selectAll('text')
+      .style('font-size', '13px').style('fill', '#636363').style('font-family', FONT);
+
+  /* ── Beeswarm ── */
+  const RADIUS = 4.5;
+  const nodes = rawData.map(d => ({
+    ...d,
+    tx: xScale(d.value),
+    ty: yScale(d.group) + yScale.bandwidth() / 2
+  }));
+
+  d3.forceSimulation(nodes)
+    .force('x', d3.forceX(d => d.tx).strength(1))
+    .force('y', d3.forceY(d => d.ty).strength(0.9))
+    .force('collide', d3.forceCollide(RADIUS + 0.8))
+    .stop()
+    .tick(300);
+
+  /* ── 클립패스 (좌→우 reveal) ── */
+  const defs = svg.append('defs');
+  defs.append('clipPath').attr('id', 'clip-bsw')
+    .append('rect')
+      .attr('x', 0).attr('y', -M.top)
+      .attr('width', 0).attr('height', iH + M.top + 4)
+      .transition().duration(800).ease(d3.easeCubicInOut)
+      .attr('width', iW + M.right);
+
+  /* ── 툴팁 ── */
+  const tooltip = document.getElementById('tooltip');
+  const ttName  = document.getElementById('tt-name');
+  const ttVal   = document.getElementById('tt-val');
+
+  /* ── 리빌 그룹 ── */
+  const revealG = g.append('g').attr('clip-path', 'url(#clip-bsw)');
+
+  /* 1) 그룹2(회색) 먼저, 그룹1(highlight) 나중 → highlight가 위에 렌더링 */
+  [2, 1].forEach(cat => {
+    revealG.selectAll(`circle.cat${cat}`)
+      .data(nodes.filter(d => d.cat === cat)).join('circle')
+        .attr('class', `cat${cat}`)
+        .attr('cx', d => d.x).attr('cy', d => d.y)
+        .attr('r', RADIUS)
+        .attr('fill', COLOR[cat])
+        .attr('fill-opacity', 0.7)
+        .attr('stroke', '#fff')
+        .attr('stroke-width', 0.7)
+        .style('cursor', 'default')
+        .on('mousemove', function(event, d) {
+          d3.select(this).attr('fill-opacity', 1).attr('r', RADIUS + 1.5);
+          ttName.textContent = `그룹 ${d.group} · 카테고리 ${d.cat}`;
+          ttVal.textContent  = `값: ${d.value.toFixed(1)}`;
+          tooltip.style.display = 'block';
+          tooltip.style.left = (event.clientX + 14) + 'px';
+          tooltip.style.top  = (event.clientY - 28) + 'px';
+        })
+        .on('mouseleave', function(event, d) {
+          d3.select(this).attr('fill-opacity', 0.7).attr('r', RADIUS);
+          tooltip.style.display = 'none';
+        });
+  });
+
+  /* 2) 중앙값 오버레이 — 모든 점 위에 */
+  const halfSpan = yScale.bandwidth() / 2 + 4;
+
+  groups.forEach((grp, gi) => {
+    const med     = medians[grp];
+    const cx      = xScale(med);
+    const cy      = yScale(grp) + yScale.bandwidth() / 2;
+    const lineTop = cy - halfSpan;
+
+    revealG.append('line')
+      .attr('x1', cx).attr('x2', cx)
+      .attr('y1', lineTop).attr('y2', cy + halfSpan)
+      .style('stroke', '#363636')
+      .style('stroke-width', 3)
+      .style('stroke-opacity', 0.9);
+
+    revealG.append('text')
+      .attr('x', cx)
+      .attr('y', lineTop - 3)
+      .attr('text-anchor', 'middle')
+      .attr('dy', '-0.1em')
+      .style('font-size', '13px')
+      .style('font-weight', '400')
+      .style('fill', '#363636')
+      .style('font-family', FONT)
+      .text(gi === 0 ? `중앙값 ${med.toFixed(1)}` : `${med.toFixed(1)}`);
+  });
+
+  /* ── SVG Export ── */
+  document.getElementById('export-btn').addEventListener('click', () => {
+    const clone = svg.node().cloneNode(true);
+    const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    bg.setAttribute('width', '100%'); bg.setAttribute('height', '100%'); bg.setAttribute('fill', '#fff');
+    clone.insertBefore(bg, clone.firstChild);
+    const blob = new Blob([new XMLSerializer().serializeToString(clone)], { type: 'image/svg+xml' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = 'beeswarm-category.svg';
+    a.click(); URL.revokeObjectURL(a.href);
+  });
+</script>
+</body>
+</html>

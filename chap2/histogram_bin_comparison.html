@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>히스토그램 — 구간 너비 비교</title>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Pretendard','Noto Sans KR',sans-serif; background:#fff; padding:40px 20px; }
+
+    .panels { display:flex; gap:24px; align-items:flex-start; }
+    .panel  { padding:16px 16px 28px 16px; display:inline-block; }
+
+    .panel-label {
+      font-size:13px; font-weight:500; color:#363636;
+      display:flex; align-items:center; gap:8px;
+      padding-bottom:8px; margin-bottom:14px;
+      border-bottom:1px solid #ddd;
+      white-space:nowrap;
+    }
+    .badge {
+      font-size:12px; font-weight:700;
+      border-radius:4px; padding:3px 10px;
+      color:#fff; letter-spacing:0.03em; flex-shrink:0;
+    }
+    .badge-worse  { background:#b8351b; }
+    .badge-better { background:#37760a; }
+
+    .source {
+      font-size:13px; line-height:17px; color:#777; margin-top:8px;
+    }
+  </style>
+</head>
+<body>
+<div class="panels">
+
+  <div class="panel">
+    <p class="panel-label"><span class="badge badge-worse">Worse</span>구간 너비 1점 — 너무 좁음</p>
+    <div id="chart-narrow"></div>
+    <p class="source">예시 데이터 (시험 점수, n=100)</p>
+  </div>
+
+  <div class="panel">
+    <p class="panel-label"><span class="badge badge-better">Better</span>구간 너비 10점 — 적절</p>
+    <div id="chart-mid"></div>
+    <p class="source">예시 데이터 (시험 점수, n=100)</p>
+  </div>
+
+  <div class="panel">
+    <p class="panel-label"><span class="badge badge-worse">Worse</span>구간 너비 25점 — 너무 넓음</p>
+    <div id="chart-wide"></div>
+    <p class="source">예시 데이터 (시험 점수, n=100)</p>
+  </div>
+
+</div>
+
+<script>
+// 시험 점수 데이터 (n=100, 정규분포 근사, 평균 70, 표준편차 약 12)
+const scores = [
+  36, 44, 48, 50, 52, 53, 54, 54, 55, 56,
+  57, 57, 58, 58, 59, 60, 60, 61, 62, 62,
+  63, 63, 63, 64, 64, 65, 65, 65, 66, 66,
+  67, 67, 67, 68, 68, 68, 69, 69, 69, 69,
+  70, 70, 70, 70, 71, 71, 71, 71, 72, 72,
+  72, 72, 73, 73, 73, 74, 74, 74, 75, 75,
+  75, 75, 76, 76, 76, 77, 77, 78, 78, 78,
+  79, 79, 80, 80, 81, 81, 82, 82, 83, 84,
+  84, 85, 86, 86, 87, 88, 89, 90, 91, 92,
+  64, 66, 68, 70, 73, 75, 77, 73, 69, 71
+];
+
+const FILL_COLOR   = '#6565FF';
+const FILL_OPACITY = 0.82;
+
+const W = 210, H = 195;
+const M = { top:8, right:10, bottom:30, left:34 };
+const iW = W - M.left - M.right;
+const iH = H - M.top  - M.bottom;
+
+const X_DOMAIN  = [30, 100];
+const X_TICKS   = [30, 50, 70, 90];
+
+function drawHistogram(containerId, binWidth) {
+  const svg = d3.select(containerId).append('svg')
+    .attr('width', W).attr('height', H)
+    .attr('xmlns', 'http://www.w3.org/2000/svg');
+  const g = svg.append('g').attr('transform', `translate(${M.left},${M.top})`);
+
+  const x = d3.scaleLinear().domain(X_DOMAIN).range([0, iW]);
+
+  const thresholds = d3.range(X_DOMAIN[0], X_DOMAIN[1] + binWidth, binWidth);
+  const bins = d3.bin()
+    .domain(X_DOMAIN)
+    .thresholds(thresholds)(scores);
+
+  const maxCount = d3.max(bins, d => d.length);
+  const y = d3.scaleLinear().domain([0, maxCount]).range([iH, 0]).nice();
+  const yTicks = y.ticks(4);
+
+  // 수평 그리드
+  g.append('g').selectAll('line.grid').data(yTicks).join('line')
+    .attr('class','grid')
+    .attr('x1', 0).attr('x2', iW)
+    .attr('y1', d => y(d)).attr('y2', d => y(d))
+    .style('stroke','#aaaaaa')
+    .style('stroke-dasharray','2')
+    .style('stroke-opacity', 0.4);
+
+  // 기준선 (y=0)
+  g.append('line')
+    .attr('x1',0).attr('x2',iW)
+    .attr('y1',y(0)).attr('y2',y(0))
+    .style('stroke','#363636').style('stroke-opacity',0.4);
+
+  // X축
+  g.append('g')
+    .attr('transform',`translate(0,${iH})`)
+    .call(
+      d3.axisBottom(x)
+        .tickValues(X_TICKS)
+        .tickSize(4).tickPadding(6)
+        .tickFormat(d => `${d}`)
+    )
+    .call(a => a.select('.domain').remove())
+    .selectAll('text')
+      .style('font-size','12px').style('fill','#999')
+      .style('font-family',"Pretendard,'Noto Sans KR',sans-serif");
+
+  g.selectAll('.tick line')
+    .style('stroke','#999999');
+
+  // Y축
+  g.append('g')
+    .call(
+      d3.axisLeft(y)
+        .tickValues(yTicks)
+        .tickSize(0).tickPadding(6)
+    )
+    .call(a => a.select('.domain').remove())
+    .selectAll('text')
+      .style('font-size','12px').style('fill','#999')
+      .style('font-family',"Pretendard,'Noto Sans KR',sans-serif");
+
+  // 막대 간격 — bin이 좁을수록 틈 없음
+  const gap = binWidth <= 2 ? 0 : binWidth >= 20 ? 2 : 1;
+
+  // 막대 (애니메이션)
+  g.selectAll('rect.bar').data(bins).join('rect')
+    .attr('class','bar')
+    .attr('x',      d => x(d.x0) + gap / 2)
+    .attr('width',  d => Math.max(0, x(d.x1) - x(d.x0) - gap))
+    .attr('y',      iH)
+    .attr('height', 0)
+    .attr('fill',   FILL_COLOR)
+    .attr('opacity', FILL_OPACITY)
+    .transition().duration(800).ease(d3.easeCubicInOut)
+    .attr('y',      d => y(d.length))
+    .attr('height', d => iH - y(d.length));
+}
+
+drawHistogram('#chart-narrow', 1);
+drawHistogram('#chart-mid',    10);
+drawHistogram('#chart-wide',   25);
+</script>
+</body>
+</html>

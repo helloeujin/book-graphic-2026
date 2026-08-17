@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>추세선과 백분위 구간을 함께 보여주기</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Pretendard', 'Noto Sans KR', sans-serif;
+    background: #fff;
+    padding: 40px 20px;
+  }
+  .container { max-width: 620px; margin: 0 auto; }
+
+  h1 {
+    font-size: 17px; line-height: 22px; font-weight: 700;
+    color: #363636; padding-bottom: 5px;
+  }
+  .dek {
+    font-size: 15px; line-height: 19px; font-weight: 400;
+    color: #777777; padding-bottom: 14px;
+  }
+
+  .chart-box {
+    display: inline-block;
+    width: 620px;
+    border: 1px solid #e0e0e0;
+    padding: 16px 16px 12px;
+  }
+  .chart-label {
+    font-size: 13px; font-weight: 500; color: #363636;
+    padding-bottom: 8px; margin-bottom: 10px;
+    border-bottom: 1px solid #ddd;
+  }
+
+  .axis text { font-size: 13px; fill: #999999; }
+  .axis-unit { font-size: 13px; fill: #999999; }
+
+  .tooltip {
+    position: fixed; pointer-events: none;
+    background: rgba(255,255,255,0.95); border: 1px solid #c6c6c6;
+    border-radius: 4px; padding: 8px 12px;
+    font-size: 13px; color: #636363;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    display: none;
+  }
+  .tooltip strong { font-size: 14px; color: #454545; display: block; margin-bottom: 2px; }
+
+  .note, .source {
+    font-size: 13px;
+    line-height: 17px;
+    font-weight: 400;
+    color: #777777;
+    margin-top: 16px;
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <h1>추세선과 백분위 구간을 함께 보여주기</h1>
+    <p class="dek">중앙값 추세선과 25~75백분위 구간, 개별 표본을 함께 표시하면 전체 경향과 흩어짐을 동시에 전달할 수 있다</p>
+
+    <div class="chart-box">
+      <p class="chart-label">연령대별 자산 — 중앙값·백분위 구간·표본</p>
+      <div id="chart"></div>
+    </div>
+
+    <p class="note">* 연령대별 자산 규모를 나타낸 가상 데이터입니다 (실제 통계 아님). 나이가 들수록 중앙값도 오르지만, 개인차(구간 폭)도 함께 커집니다.</p>
+  </div>
+
+<div class="tooltip" id="tooltip">
+  <strong id="tt-age"></strong>
+  <span id="tt-val"></span>
+</div>
+
+<script>
+  const FONT = "Pretendard,'Noto Sans KR',sans-serif";
+
+  // ── 데이터 생성 (고정 시드 — 매번 동일한 결과) ────────────────
+  const rng = d3.randomLcg(0.55);
+  const rUniform = d3.randomUniform.source(rng);
+  const rNormal = d3.randomNormal.source(rng);
+
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+  const genAge = rUniform(20, 65);
+  const genZ = rNormal(0, 1);
+
+  function baseline(age) { return 300 + 96.9 * Math.pow(age - 20, 1.4); }
+  function sigma(age) { return 0.25 + (age - 20) / 45 * 0.35; }
+
+  const n = 1000;
+  const data = [];
+  for (let i = 0; i < n; i++) {
+    const age = genAge();
+    const val = clamp(baseline(age) * Math.exp(genZ() * sigma(age)), 0, 65000);
+    data.push({ age, val });
+  }
+
+  // ── 나이별 이동 백분위 (±2.5세 창) ─────────────────────────────
+  const ages = d3.range(20, 66);
+  const rolling = ages.map(age => {
+    const win = data.filter(d => d.age >= age - 2.5 && d.age <= age + 2.5).map(d => d.val).sort(d3.ascending);
+    return {
+      age,
+      p25: d3.quantile(win, 0.25),
+      median: d3.quantile(win, 0.5),
+      p75: d3.quantile(win, 0.75)
+    };
+  });
+
+  // ── 치수 (chart-box 620px = padding 32px + SVG 588px) ─────────
+  const W = 588, H = 340;
+  const M = { top: 18, right: 20, bottom: 36, left: 56 };
+  const iW = W - M.left - M.right;
+  const iH = H - M.top - M.bottom;
+
+  const svg = d3.select('#chart').append('svg')
+    .attr('width', W).attr('height', H).attr('xmlns', 'http://www.w3.org/2000/svg');
+  const g = svg.append('g').attr('transform', `translate(${M.left},${M.top})`);
+
+  const x = d3.scaleLinear().domain([20, 65]).range([0, iW]);
+  const y = d3.scaleLinear().domain([0, 65000]).range([iH, 0]);
+  const xTicks = [20, 35, 50, 65];
+  const yTicks = [0, 20000, 40000, 60000];
+  const topTick = yTicks[yTicks.length - 1];
+
+  // 그리드
+  g.selectAll('.grid').data(yTicks).join('line')
+    .attr('class', 'grid')
+    .attr('x1', d => d === topTick ? 30 : 0)
+    .attr('x2', iW)
+    .attr('y1', d => y(d)).attr('y2', d => y(d))
+    .style('stroke', '#aaaaaa')
+    .style('stroke-dasharray', '2')
+    .style('stroke-opacity', 0.4);
+
+  // ── 툴팁 엘리먼트 ──
+  const tooltip = document.getElementById('tooltip');
+  const ttAge = document.getElementById('tt-age');
+  const ttVal = document.getElementById('tt-val');
+
+  // 개별 표본 점 (맨 아래 레이어, hover 시 강조)
+  g.append('g')
+    .selectAll('circle')
+    .data(data)
+    .join('circle')
+      .attr('cx', d => x(d.age))
+      .attr('cy', d => y(d.val))
+      .attr('r', 1.6)
+      .attr('fill', '#a4a4a4')
+      .attr('fill-opacity', 0.35)
+      .attr('stroke', 'none')
+      .style('cursor', 'default')
+      .on('mousemove', function(event, d) {
+        d3.select(this).attr('fill-opacity', 1).attr('r', 3);
+        ttAge.textContent = `${Math.round(d.age)}세`;
+        ttVal.textContent = `자산: ${Math.round(d.val).toLocaleString()}만원`;
+        tooltip.style.display = 'block';
+        tooltip.style.left = (event.clientX + 14) + 'px';
+        tooltip.style.top = (event.clientY - 28) + 'px';
+      })
+      .on('mouseleave', function() {
+        d3.select(this).attr('fill-opacity', 0.35).attr('r', 1.6);
+        tooltip.style.display = 'none';
+      });
+
+  // 25~75백분위 밴드
+  const area = d3.area()
+    .x(d => x(d.age))
+    .y0(d => y(d.p25))
+    .y1(d => y(d.p75))
+    .curve(d3.curveLinear);
+
+  g.append('path')
+    .datum(rolling)
+    .attr('d', area)
+    .attr('fill', '#6565FF')
+    .attr('fill-opacity', 0.15)
+    .attr('stroke', 'none');
+
+  // 중앙값 추세선 (맨 위 레이어)
+  const line = d3.line()
+    .x(d => x(d.age))
+    .y(d => y(d.median))
+    .curve(d3.curveLinear);
+
+  g.append('path')
+    .datum(rolling)
+    .attr('d', line)
+    .attr('fill', 'none')
+    .attr('stroke', '#6565FF')
+    .attr('stroke-width', 2);
+
+  // y축
+  g.append('g')
+    .call(d3.axisLeft(y).tickValues(yTicks).tickSize(0).tickPadding(8).tickFormat(d3.format(',')))
+    .call(a => a.select('.domain').remove())
+    .selectAll('text')
+      .style('text-anchor', 'end').style('font-size', '13px').style('fill', '#999999').style('font-family', FONT);
+
+  // 단위 (맨 위 tick 옆)
+  g.append('text')
+    .attr('class', 'axis-unit')
+    .attr('x', -8)
+    .attr('y', y(topTick))
+    .attr('dy', '0.32em')
+    .attr('dx', 4)
+    .style('text-anchor', 'start')
+    .style('font-family', FONT)
+    .text('만원');
+
+  // x축
+  g.append('g')
+    .attr('transform', `translate(0,${iH})`)
+    .call(d3.axisBottom(x).tickValues(xTicks).tickSize(4).tickPadding(8).tickFormat(d => d + '세'))
+    .call(a => a.select('.domain').remove())
+    .call(a => a.selectAll('.tick line').style('stroke', '#aaaaaa'))
+    .selectAll('text')
+      .style('font-size', '13px').style('fill', '#999999').style('font-family', FONT);
+
+</script>
+</body>
+</html>

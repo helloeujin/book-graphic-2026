@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>밀도 곡선 비교 방식</title>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Pretendard','Noto Sans KR',sans-serif; background:#fff; padding:40px 20px; }
+
+    .chart-box {
+      width: 512px;
+      border: 1px solid #e0e0e0;
+      padding: 16px 16px 14px;
+    }
+    .chart-label {
+      font-size: 13px; font-weight: 500; color: #363636;
+      padding-bottom: 8px; margin-bottom: 10px;
+      border-bottom: 1px solid #ddd;
+    }
+
+    /* 두 패널 레이아웃 */
+    .panels { display: flex; gap: 24px; }
+    .panel  { flex: 1; }
+
+    /* 비교 레이블 컴포넌트 (Style Guide §13) */
+    .badge {
+      font-size: 12px; font-weight: 700;
+      border-radius: 4px; padding: 3px 10px;
+      color: #fff; letter-spacing: 0.03em;
+      white-space: nowrap; flex-shrink: 0;
+    }
+    .badge-better { background: #37760a; }
+    .badge-worse  { background: #b8351b; }
+    .panel-label {
+      font-size: 13px; font-weight: 500; color: #363636;
+      display: flex; align-items: center; gap: 8px;
+      padding-bottom: 8px; margin-bottom: 14px;
+      border-bottom: 1px solid #ddd;
+    }
+
+    /* 툴팁 */
+    .tooltip {
+      position: fixed; pointer-events: none;
+      background: rgba(255,255,255,0.95); border: 1px solid #e5e5e5;
+      border-radius: 4px; padding: 8px 12px;
+      font-size: 13px; color: #636363;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      display: none;
+    }
+    .tooltip strong { font-size: 14px; color: #363636; display: block; margin-bottom: 2px; }
+  </style>
+</head>
+<body>
+
+<div class="chart-box">
+  <div class="panels">
+    <div class="panel">
+      <p class="panel-label">
+        <span class="badge badge-worse">Worse</span>
+        누적(stacking) 방식
+      </p>
+      <div id="chart-worse"></div>
+    </div>
+    <div class="panel">
+      <p class="panel-label">
+        <span class="badge badge-better">Better</span>
+        반투명 겹치기
+      </p>
+      <div id="chart-better"></div>
+    </div>
+  </div>
+</div>
+
+<div class="tooltip" id="tooltip">
+  <strong id="tt-title"></strong>
+  <span id="tt-body"></span>
+</div>
+
+<script>
+const COLOR_A = '#6565FF';
+const COLOR_B = '#888888';
+const FONT = "Pretendard,'Noto Sans KR',sans-serif";
+
+// ── 데이터 ──────────────────────────────────────────────────
+const RAW = [
+  { x:1,  a:32, b:18 },
+  { x:2,  a:58, b:25 },
+  { x:3,  a:20, b:42 },
+  { x:4,  a:38, b:35 },
+  { x:5,  a:92, b:30 },
+  { x:6,  a:44, b:38 },
+  { x:7,  a:60, b:58 },
+  { x:8,  a:36, b:22 },
+  { x:9,  a:74, b:20 },
+  { x:10, a:28, b:52 },
+];
+
+// ── 공통 치수 ────────────────────────────────────────────────
+// 두 패널, gap 24px → 각 228px
+const W  = 228, H  = 170;
+const M  = { top: 26, right: 6, bottom: 22, left: 6 };
+const iW = W - M.left - M.right;  // 216
+const iH = H - M.top  - M.bottom; // 122
+
+const xScale = d3.scaleLinear().domain([1, 10]).range([0, iW]);
+
+const MAX_STACKED = d3.max(RAW, d => d.a + d.b);  // 122
+const MAX_OVERLAP = d3.max(RAW, d => Math.max(d.a, d.b)); // 92
+
+// ── 패널 그리기 함수 ─────────────────────────────────────────
+function drawPanel(containerId, mode) {
+  const yMax = mode === 'stacked'
+    ? Math.ceil(MAX_STACKED / 10) * 10 + 10  // 130
+    : 100;
+  const y = d3.scaleLinear().domain([0, yMax]).range([iH, 0]);
+
+  const svg = d3.select(`#${containerId}`)
+    .append('svg').attr('width', W).attr('height', H);
+
+  // defs: clipPath (데이터 영역 리빌 애니메이션)
+  const clipId  = `clip-${mode}`;
+  const clipRect = svg.append('defs')
+    .append('clipPath').attr('id', clipId)
+    .append('rect').attr('x', 0).attr('y', 0).attr('width', 0).attr('height', H);
+
+  const g = svg.append('g').attr('transform', `translate(${M.left},${M.top})`);
+
+  // ── SVG 내 범례 ───────────────────────────────────────────
+  const LEGEND = [
+    { label: '그룹 A', color: COLOR_A },
+    { label: '그룹 B', color: COLOR_B },
+  ];
+  const gLeg = svg.append('g').attr('transform', `translate(${M.left}, 6)`);
+  LEGEND.forEach((item, i) => {
+    const gi = gLeg.append('g').attr('transform', `translate(${i * 58}, 0)`);
+    gi.append('circle').attr('r', 5).attr('cx', 5).attr('cy', 6)
+      .attr('fill', item.color);
+    gi.append('text').attr('x', 14).attr('y', 10)
+      .text(item.label)
+      .style('font-size', '12px').style('fill', '#363636').style('font-family', FONT);
+  });
+
+  // ── 그리드 (클립 밖) ─────────────────────────────────────
+  const gridTicks = [25, 50, 75, 100];
+  gridTicks.filter(v => v < yMax).forEach(v => {
+    g.append('line')
+      .attr('x1', 0).attr('x2', iW)
+      .attr('y1', y(v)).attr('y2', y(v))
+      .style('stroke', '#aaaaaa')
+      .style('stroke-dasharray', '2')
+      .style('stroke-opacity', 0.4);
+  });
+
+  // ── 데이터 그룹 (클립 적용) ──────────────────────────────
+  const gData = g.append('g').attr('clip-path', `url(#${clipId})`);
+  const curve = d3.curveCatmullRom.alpha(0.5);
+
+  if (mode === 'stacked') {
+    // ── Worse: 누적 area + stroke ───────────────────────────
+    const stack  = d3.stack().keys(['a', 'b']);
+    const layers = stack(RAW);
+    const colors = [COLOR_A, COLOR_B];
+
+    const areaFn = d3.area()
+      .x(d => xScale(d.data.x))
+      .y0(d => y(d[0]))
+      .y1(d => y(d[1]))
+      .curve(curve);
+
+    // fill (반투명)
+    gData.selectAll('.layer')
+      .data(layers)
+      .join('path')
+        .attr('class', 'layer')
+        .attr('d', areaFn)
+        .attr('fill', (d, i) => colors[i])
+        .attr('fill-opacity', 0.45);
+
+    // stroke: 각 레이어의 상단 경계선
+    // A 상단 = a 값 (A와 B의 경계)
+    // B 상단 = a+b 값 (스택 꼭대기)
+    const lineFn = valueFn => d3.line()
+      .x(d => xScale(d.x))
+      .y(d => y(valueFn(d)))
+      .curve(curve);
+
+    gData.append('path').datum(RAW)
+      .attr('d', lineFn(d => d.a)(RAW))
+      .attr('fill', 'none').attr('stroke', COLOR_A).attr('stroke-width', 1.5);
+
+    gData.append('path').datum(RAW)
+      .attr('d', lineFn(d => d.a + d.b)(RAW))
+      .attr('fill', 'none').attr('stroke', COLOR_B).attr('stroke-width', 1.5);
+
+  } else {
+    // ── Better: 반투명 겹치기 ────────────────────────────────
+    const areaGen = key => d3.area()
+      .x(d => xScale(d.x)).y0(iH).y1(d => y(d[key])).curve(curve);
+    const lineGen = key => d3.line()
+      .x(d => xScale(d.x)).y(d => y(d[key])).curve(curve);
+
+    // fill: B 먼저(아래), A 위
+    gData.append('path').datum(RAW)
+      .attr('d', areaGen('b')(RAW))
+      .attr('fill', COLOR_B).attr('fill-opacity', 0.45);
+    gData.append('path').datum(RAW)
+      .attr('d', areaGen('a')(RAW))
+      .attr('fill', COLOR_A).attr('fill-opacity', 0.45);
+
+    // stroke
+    gData.append('path').datum(RAW)
+      .attr('d', lineGen('b')(RAW))
+      .attr('fill', 'none').attr('stroke', COLOR_B).attr('stroke-width', 1.5);
+    gData.append('path').datum(RAW)
+      .attr('d', lineGen('a')(RAW))
+      .attr('fill', 'none').attr('stroke', COLOR_A).attr('stroke-width', 1.5);
+  }
+
+  // ── X축 ──────────────────────────────────────────────────
+  g.append('g')
+    .attr('transform', `translate(0,${iH})`)
+    .call(
+      d3.axisBottom(xScale)
+        .tickValues([2, 4, 6, 8, 10])
+        .tickFormat(d3.format('d'))
+        .tickSize(4).tickPadding(6)
+    )
+    .call(a => a.select('.domain').remove())
+    .call(a => a.selectAll('.tick line').style('stroke', '#aaaaaa'))
+    .selectAll('text')
+      .style('font-size', '11px').style('fill', '#999999').style('font-family', FONT);
+
+  // ── 애니메이션 ────────────────────────────────────────────
+  clipRect.transition().duration(800).ease(d3.easeCubicInOut)
+    .attr('width', iW + M.right);
+}
+
+// ── 그리기 ───────────────────────────────────────────────────
+drawPanel('chart-worse',  'stacked');
+drawPanel('chart-better', 'overlap');
+
+// ── 툴팁 (양쪽 패널) ─────────────────────────────────────────
+const tooltip = document.getElementById('tooltip');
+const ttTitle  = document.getElementById('tt-title');
+const ttBody   = document.getElementById('tt-body');
+function hideTT() { tooltip.style.display = 'none'; }
+
+['chart-worse', 'chart-better'].forEach(id => {
+  const svg    = d3.select(`#${id} svg`);
+  const g      = svg.select('g');
+  const bisect = d3.bisector(d => d.x).left;
+
+  const vLine = g.append('line')
+    .attr('y1', 0).attr('y2', iH)
+    .style('stroke', '#cccccc').style('stroke-width', 1)
+    .style('stroke-dasharray', '3').style('display', 'none');
+
+  svg.on('mousemove', function(event) {
+    const [mx] = d3.pointer(event, g.node());
+    if (mx < 0 || mx > iW) { hideTT(); vLine.style('display','none'); return; }
+    const idx = Math.max(0, Math.min(bisect(RAW, xScale.invert(mx)) - 1, RAW.length - 1));
+    const d   = RAW[idx];
+    vLine.style('display', null).attr('x1', xScale(d.x)).attr('x2', xScale(d.x));
+    ttTitle.textContent = `구간 ${d.x}`;
+    ttBody.textContent  = `그룹 A: ${d.a} · 그룹 B: ${d.b}`;
+    tooltip.style.display = 'block';
+    tooltip.style.left    = (event.clientX + 14) + 'px';
+    tooltip.style.top     = (event.clientY - 28) + 'px';
+  })
+  .on('mouseleave', () => { hideTT(); vLine.style('display','none'); });
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>점이 너무 많을 때 — 투명도의 한계와 헥스빈</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<script src="https://cdn.jsdelivr.net/npm/d3-hexbin@0.2.2/build/d3-hexbin.min.js"></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Pretendard', 'Noto Sans KR', sans-serif;
+    background: #fff;
+    padding: 40px 20px;
+  }
+  .container { max-width: 620px; margin: 0 auto; }
+
+  h1 {
+    font-size: 17px; line-height: 22px; font-weight: 700;
+    color: #363636; padding-bottom: 5px;
+  }
+  .dek {
+    font-size: 15px; line-height: 19px; font-weight: 400;
+    color: #777777; padding-bottom: 10px;
+  }
+
+  .compare-wrap {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  .panel {
+    flex: 1 1 236px;
+  }
+  .panel-header {
+    font-size: 13px;
+    font-weight: 500;
+    color: #363636;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-bottom: 8px;
+    margin-bottom: 14px;
+    border-bottom: 1px solid #ddd;
+  }
+  .badge {
+    font-size: 12px;
+    font-weight: 700;
+    border-radius: 4px;
+    padding: 3px 10px;
+    color: #ffffff;
+    letter-spacing: 0.03em;
+    flex-shrink: 0;
+  }
+  .badge-better { background: #37760a; }
+  .badge-worse  { background: #b8351b; }
+
+  .axis text { font-size: 13px; fill: #999999; }
+
+  .legend {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+    font-size: 12px;
+    color: #999999;
+  }
+  .legend-gradient {
+    width: 80px;
+    height: 8px;
+    border-radius: 2px;
+  }
+
+  .note, .source {
+    font-size: 13px;
+    line-height: 17px;
+    font-weight: 400;
+    color: #777777;
+    margin-top: 16px;
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <h1>점이 너무 많으면, 투명도만으로는 부족하다</h1>
+    <p class="dek">투명도를 적용해도 거의 하나의 덩어리로 보인다면, 밀도 자체를 색으로 표현하는 헥스빈이 대안이 된다</p>
+
+    <div class="compare-wrap">
+      <div class="panel">
+        <div class="panel-header">
+          <span class="badge badge-better">Better</span>
+          <span class="panel-desc">작은 점, 투명도 적용</span>
+        </div>
+        <div id="chart-scatter"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <span class="badge badge-better">Better</span>
+          <span class="panel-desc">헥스빈 (밀도)</span>
+        </div>
+        <div id="chart-hexbin"></div>
+        <div class="legend">
+          <span>적음</span>
+          <span class="legend-gradient" id="legend-gradient"></span>
+          <span>많음</span>
+        </div>
+      </div>
+    </div>
+
+    <p class="note">* 개념 설명을 위해 만든 가상 데이터입니다 (실제 통계 아님). 점 개수를 앞선 예시보다 늘려 밀도 차이를 더 뚜렷하게 만들었습니다.</p>
+  </div>
+
+<script>
+// ── 데이터 생성 (고정 시드 — 매번 동일한 결과, 점 개수를 늘려 밀도 대비를 강화) ──
+const rng = d3.randomLcg(0.42);
+const rNormal = d3.randomNormal.source(rng);
+
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+const data = [];
+const nA = 4200, nB = 1800;
+
+const genA_x = rNormal(280, 90);
+const genA_y = rNormal(170, 55);
+for (let i = 0; i < nA; i++) {
+  data.push({ x: clamp(genA_x(), 10, 990), y: clamp(genA_y(), 10, 690) });
+}
+const genB_x = rNormal(650, 130);
+const genB_y = rNormal(380, 100);
+for (let i = 0; i < nB; i++) {
+  data.push({ x: clamp(genB_x(), 10, 990), y: clamp(genB_y(), 10, 690) });
+}
+
+// ── 공통 스케일 ────────────────────────────────────────────────
+const W = 236, H = 200;
+const margin = { top: 6, right: 10, bottom: 30, left: 50 };
+const iW = W - margin.left - margin.right;
+const iH = H - margin.top - margin.bottom;
+
+const x = d3.scaleLinear().domain([0, 1000]).range([0, iW]);
+const y = d3.scaleLinear().domain([0, 700]).range([iH, 0]);
+const xTicks = [0, 300, 600, 900];
+const yTicks = [0, 200, 400, 600];
+
+function drawAxes(g) {
+  g.selectAll('.grid').data(yTicks).join('line')
+    .attr('class', 'grid')
+    .attr('x1', 0).attr('x2', iW)
+    .attr('y1', d => y(d)).attr('y2', d => y(d))
+    .style('stroke', '#aaaaaa')
+    .style('stroke-dasharray', '2')
+    .style('stroke-opacity', 0.4);
+
+  g.append('g').attr('class', 'axis')
+    .call(d3.axisLeft(y).tickValues(yTicks).tickSize(0).tickPadding(6))
+    .call(a => a.select('.domain').remove())
+    .selectAll('text').style('text-anchor', 'end');
+
+  g.append('g').attr('class', 'axis')
+    .attr('transform', `translate(0,${iH})`)
+    .call(d3.axisBottom(x).tickValues(xTicks).tickSize(4).tickPadding(8))
+    .call(a => a.select('.domain').remove())
+    .call(a => a.selectAll('.tick line').style('stroke', '#aaaaaa'));
+}
+
+// ── 패널 1: 투명 점 산점도 ─────────────────────────────────────
+{
+  const svg = d3.select('#chart-scatter').append('svg').attr('width', W).attr('height', H);
+  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+  drawAxes(g);
+  g.append('g')
+    .selectAll('circle')
+    .data(data)
+    .join('circle')
+      .attr('cx', d => x(d.x))
+      .attr('cy', d => y(d.y))
+      .attr('r', 2)
+      .attr('fill', '#6565FF')
+      .attr('fill-opacity', 0.08)
+      .attr('stroke', 'none');
+}
+
+// ── 패널 2: 헥스빈 ─────────────────────────────────────────────
+{
+  const svg = d3.select('#chart-hexbin').append('svg').attr('width', W).attr('height', H);
+  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+  drawAxes(g);
+
+  const hexbin = d3.hexbin()
+    .x(d => x(d.x))
+    .y(d => y(d.y))
+    .radius(7)
+    .extent([[0, 0], [iW, iH]]);
+
+  const bins = hexbin(data);
+  const maxCount = d3.max(bins, d => d.length);
+
+  // 시퀀셜 스케일: 흰색 → 하이라이트 컬러(#6565FF), 값이 클수록 진하게
+  const colorScale = d3.scaleSequential()
+    .domain([0, maxCount])
+    .interpolator(d3.interpolateLab('#eceaff', '#6565FF'));
+
+  g.append('g')
+    .selectAll('path')
+    .data(bins)
+    .join('path')
+      .attr('transform', d => `translate(${d.x},${d.y})`)
+      .attr('d', hexbin.hexagon())
+      .attr('fill', d => colorScale(d.length))
+      .attr('stroke', '#fff')
+      .attr('stroke-width', 0.5);
+}
+
+// ── 범례 그라디언트 ────────────────────────────────────────────
+{
+  const legend = document.getElementById('legend-gradient');
+  legend.style.background = 'linear-gradient(to right, #eceaff, #6565FF)';
+}
+</script>
+</body>
+</html>

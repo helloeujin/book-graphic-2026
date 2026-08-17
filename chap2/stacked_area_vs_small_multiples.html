@@ -134,7 +134,7 @@ const rawData = [
   { t:'2025', fossil:18.2, nuclear:2.8, renew:10.7 },
 ];
 
-const colors = { fossil:'#6565FF', nuclear:'#a4a4a4', renew:'#8E8EFF' };
+const colors = { fossil:'#6565FF', nuclear:'#777777', renew:'#bfbfbf' };
 
 /* ═══════════════ 왼쪽: 누적 면적 ═══════════════ */
 const GW = 600, GH = 300;
@@ -190,8 +190,8 @@ const lineTop = d3.line().x(d => xg(d.data.t)).y(d => yg(d[1])).curve(d3.curveMo
 
 series.forEach((layer, i) => {
   const k = groupKeys[i];
-  svgG.append('path').datum(layer).attr('fill', colors[k]).attr('fill-opacity', 0.82).attr('d', areaGen);
-  svgG.append('path').datum(layer).attr('fill','none').attr('stroke', colors[k]).attr('stroke-width', 1.5).attr('d', lineTop);
+  svgG.append('path').datum(layer).attr('fill', colors[k]).attr('fill-opacity', 0.4).attr('d', areaGen);
+  svgG.append('path').datum(layer).attr('fill','none').attr('stroke', colors[k]).attr('stroke-width', 1.5).attr('stroke-opacity', 1).attr('d', lineTop);
 });
 
 
@@ -254,10 +254,10 @@ groupKeys.forEach((k, gi) => {
   const areaS = d3.area().x((d,i) => xs(timeLabels[i])).y0(ys(0)).y1(d => ys(d)).curve(d3.curveMonotoneX);
   const lineS = d3.line().x((d,i) => xs(timeLabels[i])).y(d => ys(d)).curve(d3.curveMonotoneX);
 
-  svgS.append('path').datum(vals).attr('fill', colors[k]).attr('fill-opacity', 0.82).attr('d', areaS);
+  svgS.append('path').datum(vals).attr('fill', colors[k]).attr('fill-opacity', 0.4).attr('d', areaS);
 
   const pathS = svgS.append('path').datum(vals)
-    .attr('fill','none').attr('stroke', colors[k]).attr('stroke-width', 1.5).attr('d', lineS);
+    .attr('fill','none').attr('stroke', colors[k]).attr('stroke-width', 1.5).attr('stroke-opacity', 1).attr('d', lineS);
 
   const len = pathS.node().getTotalLength();
   pathS.attr('stroke-dasharray',`${len} ${len}`).attr('stroke-dashoffset', len)

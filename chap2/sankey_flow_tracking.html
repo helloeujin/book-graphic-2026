@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>중요한 흐름을 쉽게 따라갈 수 있게 만들기</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<script src="https://cdn.jsdelivr.net/npm/d3-sankey@0.12.3/dist/d3-sankey.min.js"></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Pretendard', 'Noto Sans KR', sans-serif;
+    background: #fff;
+    padding: 40px 20px;
+  }
+  .container { max-width: 620px; margin: 0; }
+
+  .compare-wrap {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  .panel {
+    flex: 1 1 236px;
+  }
+  .panel-header {
+    font-size: 13px;
+    font-weight: 500;
+    color: #363636;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-bottom: 8px;
+    margin-bottom: 14px;
+    border-bottom: 1px solid #ddd;
+  }
+  .badge {
+    font-size: 12px;
+    font-weight: 700;
+    border-radius: 4px;
+    padding: 3px 10px;
+    color: #ffffff;
+    letter-spacing: 0.03em;
+    flex-shrink: 0;
+  }
+  .badge-better { background: #37760a; }
+  .badge-worse  { background: #b8351b; }
+
+  .node-label { font-size: 10px; fill: #363636; }
+
+  .result {
+    font-size: 13px;
+    line-height: 17px;
+    font-weight: 400;
+    color: #363636;
+    margin-top: 10px;
+  }
+  .result strong { font-weight: 700; }
+
+  .note, .source {
+    font-size: 13px;
+    line-height: 17px;
+    font-weight: 400;
+    color: #777777;
+    margin-top: 16px;
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <div class="compare-wrap">
+      <div class="panel">
+        <div class="panel-header">
+          <span class="badge badge-worse">Worse</span>
+          <span class="panel-desc">교차 많음 · 색 제각각</span>
+        </div>
+        <div id="chart-worse"></div>
+        <p class="result"><strong>결과:</strong> 링크가 얽히고 색이 흩어져 어느 경로가 어디로 가는지 따라가기 어렵습니다.</p>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <span class="badge badge-better">Better</span>
+          <span class="panel-desc">교차 최소 · 출발 그룹별 색</span>
+        </div>
+        <div id="chart-better"></div>
+        <p class="result"><strong>결과:</strong> 출발점마다 같은 색으로 흘러, 각 유입 경로를 끝까지 추적할 수 있습니다.</p>
+      </div>
+    </div>
+
+    <p class="note">* 유입 경로별 전환 결과를 나타낸 가상 데이터입니다 (실제 통계 아님)</p>
+  </div>
+
+<script>
+// ── 데이터 (유입 경로 → 전환 결과) ─────────────────────────────
+// 출발 그룹: 검색 / SNS / 직접   →   결과: 구매 / 가입 / 장바구니 / 이탈
+const SRC = { 검색: 0, SNS: 1, 직접: 2 };
+const OUT = { 구매: 3, 가입: 4, 장바구니: 5, 이탈: 6 };
+const names = ['검색', 'SNS', '직접', '구매', '가입', '장바구니', '이탈'];
+
+// 출발 그룹별 색 — 링크는 왼쪽(출발) 노드 색을 따름
+const sourceColor = { 검색: '#6565FF', SNS: '#eaba04', 직접: '#cccccc' };
+// Worse용: 링크마다 제각각인 색 (무지개)
+const rainbow = ['#cc2b0c', '#0b66d6', '#3b8601', '#824cd5', '#c95c03', '#ca286d', '#029e94', '#eaba04', '#1469af'];
+
+const NODE_BAR = '#cccccc';   // 노드 바: 색 없이 중립 회색
+
+const rawLinks = [
+  { s: '검색', t: '구매',     value: 120 },
+  { s: '검색', t: '가입',     value: 80 },
+  { s: '검색', t: '이탈',     value: 210 },
+  { s: 'SNS',  t: '가입',     value: 150 },
+  { s: 'SNS',  t: '장바구니', value: 70 },
+  { s: 'SNS',  t: '이탈',     value: 160 },
+  { s: '직접', t: '구매',     value: 100 },
+  { s: '직접', t: '장바구니', value: 55 },
+  { s: '직접', t: '이탈',     value: 60 }
+];
+
+const W = 298, H = 236;
+
+function drawSankey(selector, { order, rainbowLinks, linkOpacity = 0.5, hideNodeBar = false, paintOrder = null, barColor = null, barWidth = null }) {
+  const margin = { top: 10, right: 46, bottom: 10, left: 42 };
+  const iW = W - margin.left - margin.right;
+  const iH = H - margin.top - margin.bottom;
+
+  const svg = d3.select(selector).append('svg').attr('width', W).attr('height', H);
+  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+  const sankey = d3.sankey()
+    .nodeId(d => d.id)
+    .nodeWidth(10)
+    .nodePadding(20)
+    .nodeSort(null)   // 입력 순서대로 세로 배치 (교차 제어)
+    .linkSort(null)
+    .extent([[0, 0], [iW, iH]]);
+
+  const graph = sankey({
+    nodes: order.map(id => ({ id, name: names[id] })),
+    links: rawLinks.map((l, i) => ({
+      source: SRC[l.s], target: OUT[l.t], value: l.value,
+      srcName: l.s, tgtName: l.t, idx: i
+    }))
+  });
+
+  // 링크 그리기 순서 (paintOrder 앞쪽 = 먼저 그림 = 아래 레이어)
+  let linkData = graph.links;
+  if (paintOrder) {
+    const rank = {};
+    paintOrder.forEach((nm, i) => rank[nm] = i);
+    linkData = [...graph.links].sort((a, b) => (rank[a.srcName] ?? 0) - (rank[b.srcName] ?? 0));
+  }
+
+  // 링크 — Better는 출발 노드 색, Worse는 무지개
+  g.append('g')
+    .attr('fill', 'none')
+    .selectAll('path')
+    .data(linkData)
+    .join('path')
+      .attr('d', d3.sankeyLinkHorizontal())
+      .attr('stroke', d => rainbowLinks ? rainbow[d.idx % rainbow.length] : sourceColor[d.srcName])
+      .attr('stroke-width', d => Math.max(1, d.width))
+      .attr('stroke-opacity', linkOpacity);
+
+  // 노드 바
+  if (!hideNodeBar) {
+    g.append('g')
+      .selectAll('rect')
+      .data(graph.nodes)
+      .join('rect')
+        .attr('x', d => {
+          if (!barWidth) return d.x0;
+          return d.x0 < iW / 2 ? d.x1 - barWidth : d.x0;  // 왼쪽 노드는 오른쪽 끝, 오른쪽 노드는 왼쪽 끝
+        })
+        .attr('y', d => d.y0)
+        .attr('width', d => barWidth || (d.x1 - d.x0))
+        .attr('height', d => Math.max(2, d.y1 - d.y0))
+        .attr('fill', barColor || NODE_BAR);
+  }
+
+  // 라벨 — 왼쪽 노드는 바 왼쪽, 오른쪽 노드는 바 오른쪽
+  g.append('g')
+    .selectAll('text')
+    .data(graph.nodes)
+    .join('text')
+      .attr('class', 'node-label')
+      .attr('x', d => d.x0 < iW / 2 ? d.x0 - 6 : d.x1 + 6)
+      .attr('y', d => (d.y0 + d.y1) / 2)
+      .attr('dy', '0.32em')
+      .attr('text-anchor', d => d.x0 < iW / 2 ? 'end' : 'start')
+      .style('font-weight', 600)
+      .text(d => d.name);
+}
+
+// Worse: 결과 노드 순서를 뒤섞어 교차 유발 + 링크마다 다른 색
+const worseOrder = [0, 1, 2, /* 결과: */ 5, 3, 6, 4];
+drawSankey('#chart-worse', { order: worseOrder, rainbowLinks: true, linkOpacity: 0.5 });
+
+// Better: 검색(보라) 최상단, 직접(회색) 링크 최하단 레이어, 노드 바 없음, 불투명도 1
+const betterOrder = [0, 1, 2, /* 결과: */ 4, 3, 6, 5];
+drawSankey('#chart-better', {
+  order: betterOrder,
+  rainbowLinks: false,
+  linkOpacity: 0.9,
+  hideNodeBar: false,
+  barColor: '#333333',
+  barWidth: 3,
+  paintOrder: ['직접', 'SNS', '검색']   // 회색 아래 → 보라 위
+});
+</script>
+</body>
+</html>

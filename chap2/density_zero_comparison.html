@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>밀도 그래프 — Y축 0 기준선</title>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Pretendard','Noto Sans KR',sans-serif; background:#fff; padding:40px 20px; }
+
+    .chart-box {
+      width: 512px;
+      border: 1px solid #e0e0e0;
+      padding: 16px 16px 14px;
+    }
+    .panels { display: flex; gap: 24px; }
+    .panel  { flex: 1; }
+
+    .badge {
+      font-size: 12px; font-weight: 700;
+      border-radius: 4px; padding: 3px 10px;
+      color: #fff; letter-spacing: 0.03em;
+      white-space: nowrap; flex-shrink: 0;
+    }
+    .badge-better { background: #37760a; }
+    .badge-worse  { background: #b8351b; }
+    .panel-label {
+      font-size: 13px; font-weight: 500; color: #363636;
+      display: flex; align-items: center; gap: 8px;
+      padding-bottom: 8px; margin-bottom: 14px;
+      border-bottom: 1px solid #ddd;
+    }
+
+    .tooltip {
+      position: fixed; pointer-events: none;
+      background: rgba(255,255,255,0.95); border: 1px solid #e5e5e5;
+      border-radius: 4px; padding: 8px 12px;
+      font-size: 13px; color: #636363;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      display: none;
+    }
+    .tooltip strong { font-size: 14px; color: #363636; display: block; margin-bottom: 2px; }
+  </style>
+</head>
+<body>
+
+<div class="chart-box">
+  <div class="panels">
+    <div class="panel">
+      <p class="panel-label">
+        <span class="badge badge-worse">Worse</span>
+        Y축이 0.02에서 시작
+      </p>
+      <div id="chart-worse"></div>
+    </div>
+    <div class="panel">
+      <p class="panel-label">
+        <span class="badge badge-better">Better</span>
+        Y축이 0에서 시작
+      </p>
+      <div id="chart-better"></div>
+    </div>
+  </div>
+</div>
+
+<div class="tooltip" id="tooltip">
+  <strong id="tt-title"></strong>
+  <span id="tt-body"></span>
+</div>
+
+<script>
+const COLOR_A  = '#6565FF';
+const RED_100  = '#ffe4df';   // red-100: 잘린 면적 fill
+const RED_500  = '#b8351b';   // red-500: 커트라인
+const FONT     = "Pretendard,'Noto Sans KR',sans-serif";
+const CUTOFF   = 0.02;
+
+// ── 밀도 데이터 (단일 그룹, 종 모양) ──────────────────────────
+const DENSITY = [
+  { x:0,  d:0.003 },
+  { x:1,  d:0.012 },
+  { x:2,  d:0.030 },
+  { x:3,  d:0.058 },
+  { x:4,  d:0.078 },
+  { x:5,  d:0.082 },
+  { x:6,  d:0.068 },
+  { x:7,  d:0.038 },
+  { x:8,  d:0.016 },
+  { x:9,  d:0.007 },
+  { x:10, d:0.002 },
+];
+
+// ── 공통 치수 ────────────────────────────────────────────────
+const W   = 228, H   = 170;
+const M   = { top:10, right:6, bottom:22, left:32 };
+const iW  = W - M.left - M.right;   // 190
+const iH  = H - M.top  - M.bottom;  // 138
+const yMax = 0.09;
+
+const xScale = d3.scaleLinear().domain([0, 10]).range([0, iW]);
+const y      = d3.scaleLinear().domain([0, yMax]).range([iH, 0]);
+const curve  = d3.curveCatmullRom.alpha(0.5);
+
+// ── 패널 그리기 ──────────────────────────────────────────────
+function drawPanel(containerId, mode) {
+  const svg = d3.select(`#${containerId}`)
+    .append('svg').attr('width', W).attr('height', H);
+
+  const clipId  = `clip-${mode}`;
+  const defs    = svg.append('defs');
+  const clipRect = defs.append('clipPath').attr('id', clipId)
+    .append('rect').attr('x',0).attr('y',0).attr('width',0).attr('height',H);
+
+  const g = svg.append('g').attr('transform', `translate(${M.left},${M.top})`);
+
+  // ── 그리드 ────────────────────────────────────────────────
+  const gridVals = [0.02, 0.04, 0.06, 0.08];
+  gridVals.forEach(v => {
+    g.append('line')
+      .attr('x1',0).attr('x2',iW).attr('y1',y(v)).attr('y2',y(v))
+      .style('stroke','#aaaaaa').style('stroke-dasharray','2').style('stroke-opacity',0.4);
+  });
+
+  // ── 데이터 (클립 그룹) ────────────────────────────────────
+  const gData = g.append('g').attr('clip-path', `url(#${clipId})`);
+
+  if (mode === 'worse') {
+    // 단일 fullArea path 생성 — fill·stroke 모두 동일한 경로 사용
+    const fullAreaFn = d3.area()
+      .x(d => xScale(d.x)).y0(iH).y1(d => y(d.d)).curve(curve);
+    const fullPath = fullAreaFn(DENSITY);
+
+    // zone clipPaths: 같은 path를 위/아래 영역으로 분리
+    const topClipId = `clip-top-${mode}`;
+    const botClipId = `clip-bot-${mode}`;
+
+    // 위 영역: y=0 ~ y(CUTOFF) — 파란 fill
+    defs.append('clipPath').attr('id', topClipId)
+      .append('rect').attr('x',0).attr('y',0)
+      .attr('width', iW).attr('height', y(CUTOFF));
+
+    // 아래 영역: y(CUTOFF) ~ iH — 빨간 fill (잘린 면적)
+    defs.append('clipPath').attr('id', botClipId)
+      .append('rect').attr('x',0).attr('y', y(CUTOFF))
+      .attr('width', iW).attr('height', iH - y(CUTOFF));
+
+    // ❶ 파란 fill: CUTOFF 위 영역만
+    gData.append('path').attr('d', fullPath)
+      .attr('fill', COLOR_A).attr('fill-opacity', 0.45)
+      .attr('clip-path', `url(#${topClipId})`);
+
+    // ❷ 빨간 fill: CUTOFF 아래 영역만 (잘린 면적)
+    gData.append('path').attr('d', fullPath)
+      .attr('fill', RED_100).attr('fill-opacity', 1)
+      .attr('clip-path', `url(#${botClipId})`);
+
+    // ❸ 곡선 stroke (동일 경로)
+    const lineFn = d3.line().x(d => xScale(d.x)).y(d => y(d.d)).curve(curve);
+    gData.append('path').datum(DENSITY)
+      .attr('d', lineFn(DENSITY))
+      .attr('fill','none').attr('stroke', COLOR_A).attr('stroke-width', 1.5);
+
+    // ❹ 커트라인 (y=0.02): red dashed
+    gData.append('line')
+      .attr('x1',0).attr('x2',iW).attr('y1',y(CUTOFF)).attr('y2',y(CUTOFF))
+      .style('stroke', RED_500).style('stroke-width',1.5)
+      .style('stroke-dasharray','4,2').style('opacity',0.85);
+
+  } else {
+    // ── Better: 0부터 전체 면적 ────────────────────────────────
+    // zero line
+    gData.append('line')
+      .attr('x1',0).attr('x2',iW).attr('y1',iH).attr('y2',iH)
+      .style('stroke','#363636').style('stroke-opacity',0.4);
+
+    const fullArea = d3.area()
+      .x(d => xScale(d.x)).y0(iH).y1(d => y(d.d)).curve(curve);
+    gData.append('path').datum(DENSITY)
+      .attr('d', fullArea(DENSITY))
+      .attr('fill', COLOR_A).attr('fill-opacity', 0.45);
+
+    const lineFn = d3.line().x(d => xScale(d.x)).y(d => y(d.d)).curve(curve);
+    gData.append('path').datum(DENSITY)
+      .attr('d', lineFn(DENSITY))
+      .attr('fill','none').attr('stroke', COLOR_A).attr('stroke-width', 1.5);
+  }
+
+  // ── X축 ──────────────────────────────────────────────────
+  g.append('g')
+    .attr('transform', `translate(0,${iH})`)
+    .call(
+      d3.axisBottom(xScale)
+        .tickValues([0, 2, 4, 6, 8, 10])
+        .tickFormat(d3.format('d'))
+        .tickSize(4).tickPadding(6)
+    )
+    .call(a => a.select('.domain').remove())
+    .call(a => a.selectAll('.tick line').style('stroke','#aaaaaa'))
+    .selectAll('text')
+      .style('font-size','11px').style('fill','#999999').style('font-family', FONT);
+
+  // ── Y축 ──────────────────────────────────────────────────
+  const yTicks = mode === 'worse'
+    ? [0.02, 0.04, 0.06, 0.08]       // 0.02부터 시작 (0 표시 없음)
+    : [0, 0.02, 0.04, 0.06, 0.08];   // 0부터 시작
+
+  g.append('g')
+    .call(
+      d3.axisLeft(y)
+        .tickValues(yTicks)
+        .tickSize(0)
+        .tickPadding(4)
+        .tickFormat(d => d === 0 ? '0' : d.toFixed(2))
+    )
+    .call(a => a.select('.domain').remove())
+    .selectAll('text')
+      .style('font-size','10px')
+      .style('font-family', FONT)
+      .style('fill', d =>
+        (mode === 'worse' && Math.abs(d - CUTOFF) < 1e-9) ? RED_500 : '#999999'
+      );
+
+  // ── 애니메이션 ────────────────────────────────────────────
+  clipRect.transition().duration(800).ease(d3.easeCubicInOut)
+    .attr('width', iW + M.right);
+}
+
+drawPanel('chart-worse',  'worse');
+drawPanel('chart-better', 'better');
+
+// ── 툴팁 ──────────────────────────────────────────────────
+const tooltip = document.getElementById('tooltip');
+const ttTitle  = document.getElementById('tt-title');
+const ttBody   = document.getElementById('tt-body');
+function hideTT() { tooltip.style.display = 'none'; }
+
+['chart-worse', 'chart-better'].forEach(id => {
+  const svg    = d3.select(`#${id} svg`);
+  const g      = svg.select('g');
+  const bisect = d3.bisector(d => d.x).left;
+  const vLine  = g.append('line').attr('y1',0).attr('y2',iH)
+    .style('stroke','#cccccc').style('stroke-width',1)
+    .style('stroke-dasharray','3').style('display','none');
+
+  svg.on('mousemove', function(event) {
+    const [mx] = d3.pointer(event, g.node());
+    if (mx < 0 || mx > iW) { hideTT(); vLine.style('display','none'); return; }
+    const idx = Math.max(0, Math.min(bisect(DENSITY, xScale.invert(mx)) - 1, DENSITY.length - 1));
+    const d   = DENSITY[idx];
+    vLine.style('display',null).attr('x1',xScale(d.x)).attr('x2',xScale(d.x));
+    ttTitle.textContent = `x = ${d.x}`;
+    ttBody.textContent  = `밀도: ${d.d.toFixed(3)}`;
+    tooltip.style.display = 'block';
+    tooltip.style.left    = (event.clientX + 14) + 'px';
+    tooltip.style.top     = (event.clientY - 28) + 'px';
+  })
+  .on('mouseleave', () => { hideTT(); vLine.style('display','none'); });
+});
+</script>
+</body>
+</html>

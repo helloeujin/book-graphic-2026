@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>중요한 데이터가 가려지지 않게 하기</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Pretendard', 'Noto Sans KR', sans-serif;
+    background: #fff;
+    padding: 40px 20px;
+  }
+  .container { max-width: 620px; margin: 0; }
+
+  .compare-wrap {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  .panel {
+    flex: 1 1 236px;
+  }
+  .panel-header {
+    font-size: 13px;
+    font-weight: 500;
+    color: #363636;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-bottom: 8px;
+    margin-bottom: 14px;
+    border-bottom: 1px solid #ddd;
+  }
+  .badge {
+    font-size: 12px;
+    font-weight: 700;
+    border-radius: 4px;
+    padding: 3px 10px;
+    color: #ffffff;
+    letter-spacing: 0.03em;
+    flex-shrink: 0;
+  }
+  .badge-better { background: #37760a; }
+  .badge-worse  { background: #b8351b; }
+
+  .axis text { font-size: 13px; fill: #999999; }
+  .axis-unit { font-size: 13px; fill: #999999; }
+
+  .result {
+    font-size: 13px;
+    line-height: 17px;
+    font-weight: 400;
+    color: #363636;
+    margin-top: 8px;
+  }
+  .result strong { font-weight: 700; }
+
+  .note, .source {
+    font-size: 13px;
+    line-height: 17px;
+    font-weight: 400;
+    color: #777777;
+    margin-top: 16px;
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <div class="compare-wrap">
+      <div class="panel">
+        <div class="panel-header">
+          <span class="badge badge-worse">Worse</span>
+          <span class="panel-desc">불투명 + 그리기 순서 그대로</span>
+        </div>
+        <div id="chart-worse"></div>
+        <p class="result"><strong>결과:</strong> 인구가 많은 나라의 버블이 작은 나라를 덮어 일부 데이터가 아예 보이지 않습니다.</p>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <span class="badge badge-better">Better</span>
+          <span class="panel-desc">투명도 + 큰 버블부터 그리기</span>
+        </div>
+        <div id="chart-better"></div>
+        <p class="result"><strong>결과:</strong> 작은 버블이 위에 놓이고 겹친 부분도 비쳐 모든 나라가 드러납니다.</p>
+      </div>
+    </div>
+
+    <p class="source">출처: Our World in Data — 기대수명·1인당 GDP(PPP)·인구, 2021년 기준</p>
+  </div>
+
+<script>
+// ── 실제 데이터 (2021년 기준, 반올림) ───────────────────────────
+// gdp: 1인당 GDP (PPP, 국제달러) / life: 기대수명(년) / pop: 인구(백만 명)
+const data = [
+  { name: '한국',       gdp: 47000, life: 83.5, pop: 51.7 },
+  { name: '일본',       gdp: 42000, life: 84.5, pop: 125.7 },
+  { name: '중국',       gdp: 19000, life: 78.2, pop: 1412 },
+  { name: '인도',       gdp: 7000,  life: 67.2, pop: 1408 },
+  { name: '미국',       gdp: 64000, life: 76.4, pop: 332 },
+  { name: '독일',       gdp: 57000, life: 80.9, pop: 83.2 },
+  { name: '프랑스',     gdp: 47000, life: 82.5, pop: 67.8 },
+  { name: '영국',       gdp: 46000, life: 80.7, pop: 67.3 },
+  { name: '이탈리아',   gdp: 43000, life: 82.8, pop: 59.1 },
+  { name: '스페인',     gdp: 39000, life: 83.0, pop: 47.4 },
+  { name: '러시아',     gdp: 30000, life: 69.4, pop: 143.4 },
+  { name: '브라질',     gdp: 15000, life: 72.8, pop: 214 },
+  { name: '멕시코',     gdp: 19000, life: 70.2, pop: 126.7 },
+  { name: '인도네시아', gdp: 12000, life: 67.6, pop: 273.8 },
+  { name: '나이지리아', gdp: 5000,  life: 52.7, pop: 213.4 },
+  { name: '이집트',     gdp: 12000, life: 70.2, pop: 109.3 },
+  { name: '에티오피아', gdp: 2300,  life: 65.0, pop: 120 },
+  { name: '남아프리카공화국', gdp: 13000, life: 62.3, pop: 59.4 },
+  { name: '케냐',       gdp: 4500,  life: 61.4, pop: 53 },
+  { name: '베트남',     gdp: 11000, life: 73.6, pop: 97.5 },
+  { name: '필리핀',     gdp: 8500,  life: 69.3, pop: 113.9 },
+  { name: '태국',       gdp: 18000, life: 78.7, pop: 71.6 },
+  { name: '방글라데시', gdp: 6500,  life: 72.4, pop: 169.4 },
+  { name: '파키스탄',   gdp: 5500,  life: 66.1, pop: 231.4 },
+  { name: '튀르키예',   gdp: 31000, life: 76.0, pop: 84.8 },
+  { name: '이란',       gdp: 15000, life: 73.9, pop: 87.9 },
+  { name: '사우디아라비아', gdp: 46000, life: 76.9, pop: 35.9 },
+  { name: '아르헨티나', gdp: 22000, life: 75.4, pop: 45.8 },
+  { name: '캐나다',     gdp: 51000, life: 82.7, pop: 38.2 },
+  { name: '호주',       gdp: 52000, life: 84.5, pop: 25.7 },
+  { name: '폴란드',     gdp: 36000, life: 76.5, pop: 37.7 },
+  { name: '말레이시아', gdp: 27000, life: 74.9, pop: 33.6 },
+  { name: '페루',       gdp: 13000, life: 72.4, pop: 33.7 },
+  { name: '모로코',     gdp: 8000,  life: 74.0, pop: 37.1 }
+];
+
+// ── 공통 스케일 ────────────────────────────────────────────────
+const W = 298, H = 220;
+const margin = { top: 8, right: 24, bottom: 30, left: 40 };
+const iW = W - margin.left - margin.right;
+const iH = H - margin.top - margin.bottom;
+
+const x = d3.scaleLog().domain([1800, 80000]).range([0, iW]);
+const y = d3.scaleLinear().domain([40, 100]).range([iH, 0]);
+const xTicks = [2000, 8000, 32000];
+const yTicks = [40, 60, 80, 100];
+const topTick = yTicks[yTicks.length - 1];
+
+const rScale = d3.scaleSqrt().domain([0, d3.max(data, d => d.pop)]).range([0, 30]);
+
+function drawAxes(g) {
+  g.selectAll('.grid').data(yTicks).join('line')
+    .attr('class', 'grid')
+    .attr('x1', d => d === topTick ? 14 : 0)
+    .attr('x2', iW)
+    .attr('y1', d => y(d)).attr('y2', d => y(d))
+    .style('stroke', '#aaaaaa')
+    .style('stroke-dasharray', '2')
+    .style('stroke-opacity', 0.4);
+
+  g.append('g').attr('class', 'axis')
+    .call(d3.axisLeft(y).tickValues(yTicks).tickSize(0).tickPadding(6))
+    .call(a => a.select('.domain').remove())
+    .selectAll('text').style('text-anchor', 'end');
+
+  // 단위 (맨 위 tick 옆)
+  g.append('text')
+    .attr('class', 'axis-unit')
+    .attr('x', -6)
+    .attr('y', y(topTick))
+    .attr('dy', '0.32em')
+    .attr('dx', 2)
+    .style('text-anchor', 'start')
+    .text('세');
+
+  g.append('g').attr('class', 'axis')
+    .attr('transform', `translate(0,${iH})`)
+    .call(
+      d3.axisBottom(x)
+        .tickValues(xTicks)
+        .tickSize(4)
+        .tickPadding(8)
+        .tickFormat(d => `$${d / 1000}k`)
+    )
+    .call(a => a.select('.domain').remove())
+    .call(a => a.selectAll('.tick line').style('stroke', '#aaaaaa'));
+}
+
+// ── Worse: 불투명 + 데이터 순서 그대로 ─────────────────────────
+{
+  const svg = d3.select('#chart-worse').append('svg').attr('width', W).attr('height', H);
+  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+  drawAxes(g);
+
+  g.append('g')
+    .selectAll('circle')
+    .data(data)
+    .join('circle')
+      .attr('cx', d => x(d.gdp))
+      .attr('cy', d => y(d.life))
+      .attr('r', d => rScale(d.pop))
+      .attr('fill', '#6565FF')
+      .attr('fill-opacity', 1)
+      .attr('stroke', 'none');
+}
+
+// ── Better: 투명도 + 큰 버블부터 그리기 ────────────────────────
+{
+  const svg = d3.select('#chart-better').append('svg').attr('width', W).attr('height', H);
+  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+  drawAxes(g);
+
+  // 큰 것부터 그려서 작은 버블이 위에 놓이도록
+  const sorted = [...data].sort((a, b) => b.pop - a.pop);
+
+  g.append('g')
+    .selectAll('circle')
+    .data(sorted)
+    .join('circle')
+      .attr('cx', d => x(d.gdp))
+      .attr('cy', d => y(d.life))
+      .attr('r', d => rScale(d.pop))
+      .attr('fill', '#6565FF')
+      .attr('fill-opacity', 0.3)
+      .attr('stroke', '#6565FF')
+      .attr('stroke-width', 1);
+}
+</script>
+</body>
+</html>

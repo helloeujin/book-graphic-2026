@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>버블 크기는 면적에 비례해야 한다</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Pretendard', 'Noto Sans KR', sans-serif;
+    background: #fff;
+    padding: 40px 20px;
+  }
+  .container { max-width: 620px; margin: 0; }
+
+  .compare-wrap {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  .panel {
+    flex: 1 1 236px;
+  }
+  .panel-header {
+    font-size: 13px;
+    font-weight: 500;
+    color: #363636;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-bottom: 8px;
+    margin-bottom: 14px;
+    border-bottom: 1px solid #ddd;
+  }
+  .badge {
+    font-size: 12px;
+    font-weight: 700;
+    border-radius: 4px;
+    padding: 3px 10px;
+    color: #ffffff;
+    letter-spacing: 0.03em;
+    flex-shrink: 0;
+  }
+  .badge-better { background: #37760a; }
+  .badge-worse  { background: #b8351b; }
+
+  .result {
+    font-size: 13px;
+    line-height: 17px;
+    font-weight: 400;
+    color: #363636;
+    padding-top: 0;
+    margin-top: -4px;
+  }
+  .result strong { font-weight: 700; }
+</style>
+</head>
+<body>
+  <div class="container">
+    <div class="compare-wrap">
+      <div class="panel">
+        <div class="panel-header">
+          <span class="badge badge-worse">Worse</span>
+          <span class="panel-desc">반지름 ∝ 데이터 값</span>
+        </div>
+        <div id="chart-worse"></div>
+        <p class="result"><strong>결과:</strong> 데이터는 2배지만 버블의 면적은 4배가 되어 차이가 실제보다 크게 보입니다.</p>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <span class="badge badge-better">Better</span>
+          <span class="panel-desc">면적 ∝ 데이터 값</span>
+        </div>
+        <div id="chart-better"></div>
+        <p class="result"><strong>결과:</strong> 데이터가 2배일 때 버블의 면적도 정확히 2배가 되어 값의 차이를 왜곡하지 않습니다.</p>
+      </div>
+    </div>
+  </div>
+
+<script>
+const values = [100, 200];
+
+const W = 298, H = 200;
+const margin = { top: 10, right: 10, bottom: 30, left: 10 };
+const iW = W - margin.left - margin.right;
+const iH = H - margin.top - margin.bottom;
+
+// 100을 기준으로 두 패널의 반지름을 동일하게 고정 → 200의 표현 방식만 달라짐
+const R_BASE = 24;
+
+// Worse: 반지름이 값에 비례 → 200은 반지름 2배
+const rLinear = v => R_BASE * (v / 100);
+// Better: 면적이 값에 비례 → 200은 반지름 √2배
+const rSqrt = v => R_BASE * Math.sqrt(v / 100);
+
+const xBand = d3.scalePoint().domain(values.map(String)).range([0, iW]).padding(0.5);
+const centerY = iH / 2 - 6;
+
+function drawPanel(selector, rScale) {
+  const svg = d3.select(selector).append('svg').attr('width', W).attr('height', H);
+  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+  const nodes = g.append('g')
+    .selectAll('g')
+    .data(values)
+    .join('g')
+      .attr('transform', d => `translate(${xBand(String(d))},0)`);
+
+  nodes.append('circle')
+    .attr('cx', 0)
+    .attr('cy', centerY)
+    .attr('r', d => rScale(d))
+    .attr('fill', '#6565FF')
+    .attr('fill-opacity', 0.3)
+    .attr('stroke', '#6565FF')
+    .attr('stroke-width', 1);
+
+  // 버블 안 값
+  nodes.append('text')
+    .attr('x', 0)
+    .attr('y', centerY)
+    .attr('dy', '0.34em')
+    .attr('text-anchor', 'middle')
+    .style('font-size', '13px')
+    .style('font-weight', '700')
+    .style('fill', '#363636')
+    .text(d => d);
+}
+
+drawPanel('#chart-worse', rLinear);
+drawPanel('#chart-better', rSqrt);
+</script>
+</body>
+</html>

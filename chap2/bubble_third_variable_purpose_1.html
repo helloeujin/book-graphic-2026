@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>세 번째 변수가 정말 필요한지 먼저 생각하기</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Pretendard', 'Noto Sans KR', sans-serif;
+    background: #fff;
+    padding: 40px 20px;
+  }
+  .container { max-width: 620px; margin: 0; }
+
+  h1 {
+    font-size: 17px; line-height: 22px; font-weight: 700;
+    color: #363636; padding-bottom: 5px;
+  }
+  .dek {
+    font-size: 15px; line-height: 19px; font-weight: 400;
+    color: #777777; padding-bottom: 10px;
+  }
+
+  .compare-wrap {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  .panel {
+    flex: 1 1 236px;
+  }
+  .panel-header {
+    font-size: 13px;
+    font-weight: 500;
+    color: #363636;
+    padding-bottom: 8px;
+    margin-bottom: 14px;
+    border-bottom: 1px solid #ddd;
+  }
+
+  .axis text { font-size: 13px; fill: #999999; }
+
+  .note, .source {
+    font-size: 13px;
+    line-height: 17px;
+    font-weight: 400;
+    color: #777777;
+    margin-top: 16px;
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <h1>세 번째 변수가 정말 필요한지 먼저 생각하기</h1>
+    <p class="dek">관계를 보여주는 게 목적이라면 산점도로 충분하고, 규모처럼 함께 봐야 할 정보가 있을 때만 버블을 더한다</p>
+
+    <div class="compare-wrap">
+      <div class="panel">
+        <div class="panel-header">관계 파악이 목적이라면 — 산점도만으로 충분</div>
+        <div id="chart-scatter"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">비교할 정보가 하나 더 필요하다면 — 버블 크기 추가</div>
+        <div id="chart-bubble"></div>
+      </div>
+    </div>
+
+    <p class="note">* 매출·이익·직원 수를 나타낸 가상 기업 데이터입니다 (실제 통계 아님)</p>
+  </div>
+
+<script>
+// ── 데이터 생성 (고정 시드 — 매번 동일한 결과) ──────────────────
+const rng = d3.randomLcg(0.33);
+const rUniform = d3.randomUniform.source(rng);
+const rNormal = d3.randomNormal.source(rng);
+
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+const genRevenue = d3.randomLogNormal.source(rng)(Math.log(280), 0.75);
+const profitNoise = rNormal(0, 15);
+const sizeNoise = rNormal(0, 0.4);
+
+const data = [];
+for (let i = 0; i < 25; i++) {
+  const revenue = clamp(genRevenue(), 50, 1800);
+  const profit = clamp(0.12 * revenue + profitNoise(), -20, 260);
+  const size = clamp(Math.pow(revenue, 0.65) * Math.exp(sizeNoise()), 20, 3000);
+  data.push({ revenue, profit, size });
+}
+
+// ── 공통 스케일 ────────────────────────────────────────────────
+const W = 298, H = 200;
+const margin = { top: 6, right: 24, bottom: 30, left: 50 };
+const iW = W - margin.left - margin.right;
+const iH = H - margin.top - margin.bottom;
+
+const x = d3.scaleLinear().domain([0, 1800]).range([0, iW]);
+const y = d3.scaleLinear().domain([-20, 260]).range([iH, 0]);
+const xTicks = [0, 600, 1200, 1800];
+const yTicks = [0, 100, 200];
+
+const rScale = d3.scaleSqrt().domain(d3.extent(data, d => d.size)).range([2, 20]);
+
+function drawAxes(g) {
+  g.selectAll('.grid').data(yTicks).join('line')
+    .attr('class', 'grid')
+    .attr('x1', 0).attr('x2', iW)
+    .attr('y1', d => y(d)).attr('y2', d => y(d))
+    .style('stroke', '#aaaaaa')
+    .style('stroke-dasharray', '2')
+    .style('stroke-opacity', 0.4);
+
+  g.append('g').attr('class', 'axis')
+    .call(d3.axisLeft(y).tickValues(yTicks).tickSize(0).tickPadding(6))
+    .call(a => a.select('.domain').remove())
+    .selectAll('text').style('text-anchor', 'end');
+
+  g.append('g').attr('class', 'axis')
+    .attr('transform', `translate(0,${iH})`)
+    .call(d3.axisBottom(x).tickValues(xTicks).tickSize(4).tickPadding(8))
+    .call(a => a.select('.domain').remove())
+    .call(a => a.selectAll('.tick line').style('stroke', '#aaaaaa'));
+}
+
+// ── 패널 1: 산점도만 (관계 파악) ───────────────────────────────
+{
+  const svg = d3.select('#chart-scatter').append('svg').attr('width', W).attr('height', H);
+  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+  drawAxes(g);
+
+  g.append('g')
+    .selectAll('circle')
+    .data(data)
+    .join('circle')
+      .attr('cx', d => x(d.revenue))
+      .attr('cy', d => y(d.profit))
+      .attr('r', 4)
+      .attr('fill', '#6565FF')
+      .attr('fill-opacity', 0.75)
+      .attr('stroke', 'none');
+}
+
+// ── 패널 2: 버블 (규모까지 함께 비교) ──────────────────────────
+{
+  const svg = d3.select('#chart-bubble').append('svg').attr('width', W).attr('height', H);
+  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+  drawAxes(g);
+
+  g.append('g')
+    .selectAll('circle')
+    .data(data)
+    .join('circle')
+      .attr('cx', d => x(d.revenue))
+      .attr('cy', d => y(d.profit))
+      .attr('r', d => rScale(d.size))
+      .attr('fill', '#6565FF')
+      .attr('fill-opacity', 0.55)
+      .attr('stroke', '#6565FF')
+      .attr('stroke-width', 1);
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>패턴이 잘 보이도록 행과 열 정렬하기</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Pretendard', 'Noto Sans KR', sans-serif;
+    background: #fff;
+    padding: 40px 20px;
+  }
+  .container { max-width: 620px; margin: 0; }
+
+  .compare-wrap {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  .panel {
+    flex: 1 1 236px;
+  }
+  .panel-header {
+    font-size: 13px;
+    font-weight: 500;
+    color: #363636;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-bottom: 8px;
+    margin-bottom: 14px;
+    border-bottom: 1px solid #ddd;
+  }
+  .badge {
+    font-size: 12px;
+    font-weight: 700;
+    border-radius: 4px;
+    padding: 3px 10px;
+    color: #ffffff;
+    letter-spacing: 0.03em;
+    flex-shrink: 0;
+  }
+  .badge-better { background: #37760a; }
+  .badge-worse  { background: #b8351b; }
+
+  .result {
+    font-size: 13px;
+    line-height: 17px;
+    font-weight: 400;
+    color: #363636;
+    margin-top: 8px;
+  }
+  .result strong { font-weight: 700; }
+
+  .note, .source {
+    font-size: 13px;
+    line-height: 17px;
+    font-weight: 400;
+    color: #777777;
+    margin-top: 16px;
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <div class="compare-wrap">
+      <div class="panel">
+        <div class="panel-header">
+          <span class="badge badge-worse">Worse</span>
+          <span class="panel-desc">가나다순 정렬</span>
+        </div>
+        <div id="chart-worse"></div>
+        <p class="result"><strong>결과:</strong> 진한 칸이 흩어져 있어 어떤 항목끼리 비슷한지 알아보기 어렵습니다.</p>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <span class="badge badge-better">Better</span>
+          <span class="panel-desc">값 크기순 정렬</span>
+        </div>
+        <div id="chart-better"></div>
+        <p class="result"><strong>결과:</strong> 진한 칸이 한쪽으로 모여 값이 높은 항목과 낮은 항목이 한눈에 구분됩니다.</p>
+      </div>
+    </div>
+
+    <p class="note">* 개념 설명을 위해 만든 가상 데이터입니다 (실제 통계 아님)</p>
+  </div>
+
+<script>
+// ── 데이터 생성 (고정 시드 — 매번 동일한 결과) ──────────────────
+const rng = d3.randomLcg(0.41);
+const rNormal = d3.randomNormal.source(rng)(0, 6);
+
+const rows = ['가전', '식음료', '의류', '자동차', '화장품', '가구', '완구', '문구'];
+const cols = ['북미', '유럽', '동남아', '중동', '중남미', '아프리카', '오세아니아', '동아시아'];
+
+// 행·열마다 고유한 강도를 부여 → 값 = 행 강도 × 열 강도 + 잡음
+const rowStrength = { 가전: 1.00, 식음료: 0.62, 의류: 0.86, 자동차: 0.94, 화장품: 0.74, 가구: 0.40, 완구: 0.30, 문구: 0.22 };
+const colStrength = { 북미: 0.95, 유럽: 0.82, 동남아: 0.70, 중동: 0.45, 중남미: 0.38, 아프리카: 0.25, 오세아니아: 0.55, 동아시아: 1.00 };
+
+const data = [];
+rows.forEach(r => {
+  cols.forEach(c => {
+    const v = 100 * rowStrength[r] * colStrength[c] + rNormal();
+    data.push({ row: r, col: c, value: Math.max(2, Math.min(100, v)) });
+  });
+});
+
+const lookup = new Map(data.map(d => [`${d.row}|${d.col}`, d.value]));
+const valueOf = (r, c) => lookup.get(`${r}|${c}`);
+
+// ── 정렬 순서 두 가지 ───────────────────────────────────────────
+const koSort = (a, b) => a.localeCompare(b, 'ko');
+const rowsAlpha = [...rows].sort(koSort);
+const colsAlpha = [...cols].sort(koSort);
+
+const rowTotal = r => d3.sum(cols, c => valueOf(r, c));
+const colTotal = c => d3.sum(rows, r => valueOf(r, c));
+const rowsSorted = [...rows].sort((a, b) => rowTotal(b) - rowTotal(a));
+const colsSorted = [...cols].sort((a, b) => colTotal(b) - colTotal(a));
+
+// ── 치수 ────────────────────────────────────────────────────────
+const W = 298, H = 260;
+const margin = { top: 6, right: 6, bottom: 58, left: 62 };
+const iW = W - margin.left - margin.right;
+const iH = H - margin.top - margin.bottom;
+
+// 5단계 sequential — 연속 그라데이션 대신 구간을 나눠 값 차이를 뚜렷하게
+const colorSteps = d3.quantize(d3.interpolateLab('#f0efff', '#6565FF'), 5);
+const color = d3.scaleQuantize()
+  .domain([0, d3.max(data, d => d.value)])
+  .range(colorSteps);
+
+function drawHeatmap(selector, rowOrder, colOrder) {
+  const svg = d3.select(selector).append('svg').attr('width', W).attr('height', H);
+  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+  const xb = d3.scaleBand().domain(colOrder).range([0, iW]).padding(0.06);
+  const yb = d3.scaleBand().domain(rowOrder).range([0, iH]).padding(0.06);
+
+  // 셀
+  g.append('g')
+    .selectAll('rect')
+    .data(data)
+    .join('rect')
+      .attr('x', d => xb(d.col))
+      .attr('y', d => yb(d.row))
+      .attr('width', xb.bandwidth())
+      .attr('height', yb.bandwidth())
+      .attr('fill', d => color(d.value));
+
+  // 행 레이블
+  g.append('g')
+    .selectAll('text')
+    .data(rowOrder)
+    .join('text')
+      .attr('x', -8)
+      .attr('y', d => yb(d) + yb.bandwidth() / 2)
+      .attr('dy', '0.32em')
+      .style('text-anchor', 'end')
+      .style('font-size', '11px')
+      .style('fill', '#999999')
+      .text(d => d);
+
+  // 열 레이블 (기울여 표시)
+  g.append('g')
+    .selectAll('text')
+    .data(colOrder)
+    .join('text')
+      .attr('transform', d => `translate(${xb(d) + xb.bandwidth() / 2},${iH + 8}) rotate(-45)`)
+      .style('text-anchor', 'end')
+      .style('font-size', '11px')
+      .style('fill', '#999999')
+      .text(d => d);
+}
+
+drawHeatmap('#chart-worse', rowsAlpha, colsAlpha);
+drawHeatmap('#chart-better', rowsSorted, colsSorted);
+</script>
+</body>
+</html>

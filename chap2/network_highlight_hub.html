@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>중요한 노드가 먼저 눈에 띄게 만들기</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Pretendard', 'Noto Sans KR', sans-serif;
+    background: #fff;
+    padding: 40px 20px;
+  }
+  .container { max-width: 620px; margin: 0; }
+
+  .compare-wrap {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  .panel {
+    flex: 1 1 236px;
+  }
+  .panel-header {
+    font-size: 13px;
+    font-weight: 500;
+    color: #363636;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-bottom: 8px;
+    margin-bottom: 14px;
+    border-bottom: 1px solid #ddd;
+  }
+  .badge {
+    font-size: 12px;
+    font-weight: 700;
+    border-radius: 4px;
+    padding: 3px 10px;
+    color: #ffffff;
+    letter-spacing: 0.03em;
+    flex-shrink: 0;
+  }
+  .badge-better { background: #37760a; }
+  .badge-worse  { background: #b8351b; }
+
+  .node-label { font-size: 10px; fill: #363636; }
+  .node-label-worse { font-size: 9px; fill: #363636; }
+
+  .result {
+    font-size: 13px;
+    line-height: 17px;
+    font-weight: 400;
+    color: #363636;
+    margin-top: 10px;
+  }
+  .result strong { font-weight: 700; }
+
+  .note, .source {
+    font-size: 13px;
+    line-height: 17px;
+    font-weight: 400;
+    color: #777777;
+    margin-top: 16px;
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <div class="compare-wrap">
+      <div class="panel">
+        <div class="panel-header">
+          <span class="badge badge-worse">Worse</span>
+          <span class="panel-desc">같은 크기 · 모든 노드에 라벨</span>
+        </div>
+        <div id="chart-worse"></div>
+        <p class="result"><strong>결과:</strong> 라벨이 서로 겹치고, 어느 노드가 중심인지 찾기 어렵습니다.</p>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <span class="badge badge-better">Better</span>
+          <span class="panel-desc">연결 수에 따른 크기 · 선택적 라벨</span>
+        </div>
+        <div id="chart-better"></div>
+        <p class="result"><strong>결과:</strong> 크기가 큰 허브 3개가 한눈에 들어옵니다.</p>
+      </div>
+    </div>
+
+    <p class="note">* 개념 설명을 위해 만든 가상 네트워크입니다 (실제 관계 아님)</p>
+  </div>
+
+<script>
+// ── 네트워크 구조 (허브 3개에 연결이 집중된 구조) ────────────────
+const hubs = ['H1', 'H2', 'H3'];
+const nodeIds = [
+  'H1', 'H2', 'H3',
+  'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o'
+];
+
+// 엣지: 각 주변 노드를 허브에 연결 + 허브끼리 연결 + 약간의 곁가지
+const links = [
+  // 허브 간 연결
+  ['H1', 'H2'], ['H2', 'H3'], ['H1', 'H3'],
+  // H1 주변
+  ['H1', 'a'], ['H1', 'b'], ['H1', 'c'], ['H1', 'd'], ['H1', 'e'], ['H1', 'f'],
+  // H2 주변
+  ['H2', 'f'], ['H2', 'g'], ['H2', 'h'], ['H2', 'i'], ['H2', 'j'],
+  // H3 주변
+  ['H3', 'j'], ['H3', 'k'], ['H3', 'l'], ['H3', 'm'], ['H3', 'n'], ['H3', 'o'],
+  // 곁가지 (주변 노드끼리 약한 연결)
+  ['a', 'b'], ['g', 'h'], ['l', 'm']
+].map(([s, t]) => ({ source: s, target: t }));
+
+// degree 계산
+const degree = {};
+nodeIds.forEach(id => degree[id] = 0);
+links.forEach(l => { degree[l.source]++; degree[l.target]++; });
+
+const nodes = nodeIds.map(id => ({ id, degree: degree[id], isHub: hubs.includes(id) }));
+
+// ── 치수 ────────────────────────────────────────────────────────
+const W = 298, H = 260;
+
+// ── 공유 레이아웃: 시뮬레이션을 즉시 수렴시켜 정적 좌표 확보 ──────
+const linkObjs = links.map(l => ({ ...l }));
+const sim = d3.forceSimulation(nodes)
+  .force('link', d3.forceLink(linkObjs).id(d => d.id).distance(38).strength(0.5))
+  .force('charge', d3.forceManyBody().strength(-90))
+  .force('center', d3.forceCenter(W / 2, H / 2))
+  .force('collide', d3.forceCollide(14))
+  .stop();
+for (let i = 0; i < 300; ++i) sim.tick();
+
+// 좌표를 여백 안으로 클램프
+const pad = 24;
+nodes.forEach(n => {
+  n.x = Math.max(pad, Math.min(W - pad, n.x));
+  n.y = Math.max(pad, Math.min(H - pad, n.y));
+});
+
+const rScale = d3.scaleSqrt()
+  .domain([1, d3.max(nodes, d => d.degree)])
+  .range([4, 14]);
+
+function drawNetwork(selector, { highlight }) {
+  const svg = d3.select(selector).append('svg').attr('width', W).attr('height', H);
+  const g = svg.append('g');
+
+  // 엣지
+  g.append('g')
+    .selectAll('line')
+    .data(linkObjs)
+    .join('line')
+      .attr('x1', d => d.source.x).attr('y1', d => d.source.y)
+      .attr('x2', d => d.target.x).attr('y2', d => d.target.y)
+      .attr('stroke', '#b9b9f2')
+      .attr('stroke-width', 1);
+
+  // 노드
+  g.append('g')
+    .selectAll('circle')
+    .data(nodes)
+    .join('circle')
+      .attr('cx', d => d.x).attr('cy', d => d.y)
+      .attr('r', d => highlight ? rScale(d.degree) : 6)
+      .attr('fill', '#6565FF')
+      .attr('stroke', '#fff')
+      .attr('stroke-width', 1);
+
+  // 라벨
+  if (highlight) {
+    // Better: 허브 3개만
+    g.append('g')
+      .selectAll('text')
+      .data(nodes.filter(d => d.isHub))
+      .join('text')
+        .attr('class', 'node-label')
+        .attr('x', d => d.x)
+        .attr('y', d => d.y - rScale(d.degree) - 4)
+        .attr('text-anchor', 'middle')
+        .style('font-weight', 700)
+        .text(d => d.id);
+  } else {
+    // Worse: 모든 노드
+    g.append('g')
+      .selectAll('text')
+      .data(nodes)
+      .join('text')
+        .attr('class', 'node-label-worse')
+        .attr('x', d => d.x)
+        .attr('y', d => d.y - 8)
+        .attr('text-anchor', 'middle')
+        .text(d => d.id);
+  }
+}
+
+drawNetwork('#chart-worse', { highlight: false });
+drawNetwork('#chart-better', { highlight: true });
+</script>
+</body>
+</html>

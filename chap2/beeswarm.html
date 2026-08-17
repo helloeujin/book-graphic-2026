@@ -67,63 +67,63 @@
     .attr('width', W).attr('height', H).attr('xmlns', 'http://www.w3.org/2000/svg');
   const g = svg.append('g').attr('transform', `translate(${M.left},${M.top})`);
 
-  /* ── 스케일 ── */
-  const xScale = d3.scaleBand().domain(groups).range([0, iW]).padding(0.3);
-  const yScale = d3.scaleLinear().domain([0, 70]).range([iH, 0]);
-  const yTicks = [0, 20, 40, 60];
+  /* ── 스케일 (가로형: X=값, Y=그룹) ── */
+  const xScale = d3.scaleLinear().domain([0, 70]).range([0, iW]);
+  const yScale = d3.scaleBand().domain(groups).range([0, iH]).padding(0.3);
+  const xTicks = [0, 20, 40, 60];
 
-  /* ── 그리드 ── */
-  g.selectAll('line.grid').data(yTicks.slice(1)).join('line')
+  /* ── 그리드 (수직선) ── */
+  g.selectAll('line.grid').data(xTicks.slice(1)).join('line')
     .attr('class', 'grid')
-    .attr('x1', 0).attr('x2', iW)
-    .attr('y1', d => yScale(d)).attr('y2', d => yScale(d))
+    .attr('x1', d => xScale(d)).attr('x2', d => xScale(d))
+    .attr('y1', 0).attr('y2', iH)
     .style('stroke', '#aaaaaa').style('stroke-dasharray', '2').style('stroke-opacity', 0.4);
 
-  /* ── zero line ── */
+  /* ── zero line (수직) ── */
   g.append('line')
-    .attr('x1', 0).attr('x2', iW)
-    .attr('y1', yScale(0)).attr('y2', yScale(0))
+    .attr('x1', xScale(0)).attr('x2', xScale(0))
+    .attr('y1', 0).attr('y2', iH)
     .style('stroke', '#363636').style('stroke-opacity', 0.4);
 
-  /* ── Y축 ── */
-  g.append('g')
-    .call(d3.axisLeft(yScale).tickValues(yTicks).tickSize(0).tickPadding(8))
+  /* ── X축 (하단, 값축) ── */
+  g.append('g').attr('transform', `translate(0,${iH})`)
+    .call(d3.axisBottom(xScale).tickValues(xTicks).tickSize(0).tickPadding(8))
     .call(a => a.select('.domain').remove())
     .selectAll('text')
       .style('font-size', '13px').style('fill', '#999999')
       .style('font-family', "Pretendard,'Noto Sans KR',sans-serif");
 
-  /* ── X축 ── */
-  g.append('g').attr('transform', `translate(0,${iH})`)
-    .call(d3.axisBottom(xScale).tickSize(0).tickPadding(10))
+  /* ── Y축 (좌측, 그룹축) ── */
+  g.append('g')
+    .call(d3.axisLeft(yScale).tickSize(0).tickPadding(10))
     .call(a => a.select('.domain').remove())
     .selectAll('text')
       .style('font-size', '13px').style('fill', '#636363')
       .style('font-family', "Pretendard,'Noto Sans KR',sans-serif");
 
-  /* ── Beeswarm 시뮬레이션 ── */
+  /* ── Beeswarm 시뮬레이션 (가로형) ── */
   const RADIUS = 3.5;
   const nodes = rawData.map(d => ({
     ...d,
-    tx: xScale(d.group) + xScale.bandwidth() / 2,
-    ty: yScale(d.value)
+    tx: xScale(d.value),
+    ty: yScale(d.group) + yScale.bandwidth() / 2
   }));
 
   const sim = d3.forceSimulation(nodes)
-    .force('x', d3.forceX(d => d.tx).strength(0.9))
-    .force('y', d3.forceY(d => d.ty).strength(1))
+    .force('x', d3.forceX(d => d.tx).strength(1))
+    .force('y', d3.forceY(d => d.ty).strength(0.9))
     .force('collide', d3.forceCollide(RADIUS + 0.8))
     .stop();
 
   for (let i = 0; i < 300; i++) sim.tick();
 
-  /* ── 클립패스 애니메이션 ── */
+  /* ── 클립패스 애니메이션 (왼쪽→오른쪽) ── */
   const defs = svg.append('defs');
   defs.append('clipPath').attr('id', 'clip-bsw')
     .append('rect')
-      .attr('x', 0).attr('y', 0).attr('width', iW + M.right).attr('height', 0)
+      .attr('x', 0).attr('y', 0).attr('width', 0).attr('height', iH + M.top + M.bottom)
       .transition().duration(800).ease(d3.easeCubicInOut)
-      .attr('height', iH + M.top);
+      .attr('width', iW + M.right);
 
   /* ── 툴팁 ── */
   const tooltip = document.getElementById('tooltip');

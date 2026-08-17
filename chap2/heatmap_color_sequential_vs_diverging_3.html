@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>데이터의 의미에 맞는 색상을 선택하기</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Pretendard', 'Noto Sans KR', sans-serif;
+    background: #fff;
+    padding: 40px 20px;
+  }
+  .container { max-width: 620px; margin: 0; }
+
+  .compare-wrap {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  .panel {
+    flex: 1 1 236px;
+  }
+  .panel-header {
+    font-size: 13px;
+    font-weight: 500;
+    color: #363636;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-bottom: 8px;
+    margin-bottom: 14px;
+    border-bottom: 1px solid #ddd;
+  }
+  .badge {
+    font-size: 12px;
+    font-weight: 700;
+    border-radius: 4px;
+    padding: 3px 10px;
+    color: #ffffff;
+    letter-spacing: 0.03em;
+    flex-shrink: 0;
+  }
+  .badge-better { background: #37760a; }
+  .badge-worse  { background: #b8351b; }
+
+  .legend {
+    display: flex;
+    align-items: center;
+    margin-top: 10px;
+    font-size: 11px;
+    color: #999999;
+  }
+  .legend-bar {
+    display: block;
+    width: 110px;
+    height: 10px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+  .legend-label { margin: 0 6px; flex-shrink: 0; }
+
+  .result {
+    font-size: 13px;
+    line-height: 17px;
+    font-weight: 400;
+    color: #363636;
+    margin-top: 10px;
+  }
+  .result strong { font-weight: 700; }
+
+  .note, .source {
+    font-size: 13px;
+    line-height: 17px;
+    font-weight: 400;
+    color: #777777;
+    margin-top: 16px;
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <div class="compare-wrap">
+      <div class="panel">
+        <div class="panel-header">
+          <span class="badge badge-worse">Worse</span>
+          <span class="panel-desc">순차 색상</span>
+        </div>
+        <div id="chart-worse"></div>
+        <div class="legend" id="legend-worse"></div>
+        <p class="result"><strong>결과:</strong> 값의 크기는 보이지만, 어디서 0을 넘어 감소에서 증가로 바뀌는지 알기 어렵습니다.</p>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <span class="badge badge-better">Better</span>
+          <span class="panel-desc">발산 색상 · 중앙값 = 0</span>
+        </div>
+        <div id="chart-better"></div>
+        <div class="legend" id="legend-better"></div>
+        <p class="result"><strong>결과:</strong> 0을 기준으로 색이 갈려 감소와 증가가 즉시 구분되고, 0에 가까운 값은 중립색으로 읽힙니다.</p>
+      </div>
+    </div>
+
+    <p class="note">* 평년 대비 월별 기온 변화(°C)를 나타낸 가상 데이터입니다 (실제 관측값 아님)</p>
+  </div>
+
+<script>
+// ── 데이터 (평년 대비 기온 편차, °C) ────────────────────────────
+const rows = ['서울', '부산', '대구', '광주', '대전', '제주'];
+const cols = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월'];
+
+const raw = {
+  서울: [-3.2, -2.1, -0.8, 0.4, 1.2, 2.5, 3.1, 2.0],
+  부산: [-1.8, -1.1, -0.3, 0.7, 1.6, 2.2, 2.8, 1.5],
+  대구: [-2.7, -1.9, -0.6, 0.2, 1.9, 3.0, 3.5, 2.6],
+  광주: [-1.4, -0.9, -0.2, 0.6, 1.4, 2.0, 2.4, 1.2],
+  대전: [-2.9, -2.0, -0.7, 0.1, 1.1, 2.4, 3.0, 2.1],
+  제주: [-0.9, -0.5,  0.0, 0.8, 1.3, 1.8, 2.1, 1.0]
+};
+
+const data = [];
+rows.forEach(r => {
+  cols.forEach((c, i) => data.push({ row: r, col: c, value: raw[r][i] }));
+});
+
+const LIMIT = 4;  // 색상 스케일 범위 ±4°C
+
+// ── 색상 스케일 (연속) ─────────────────────────────────────────
+// Worse: 순차 — 감소도 단순히 연한 색으로만 표현됨
+const seqColor = d3.scaleSequential()
+  .domain([-LIMIT, LIMIT])
+  .interpolator(d3.interpolateLab('#f0efff', '#4a4ae8'));
+
+// Better: 발산 — 중앙(0)은 회색, 낮음=파랑 / 높음=빨강 (tokens.json redBlue)
+const divInterpolator = d3.interpolateRgbBasis(['#2862c1', '#8ea3e9', '#fafafa', '#ee8a6f', '#b8351b']);
+const divColor = d3.scaleSequential()
+  .domain([-LIMIT, LIMIT])
+  .interpolator(divInterpolator);
+
+// 범례용 CSS 그라디언트 문자열
+const gradientCss = interpolator =>
+  'linear-gradient(to right, ' +
+  d3.range(0, 1.0001, 0.05).map(t => d3.rgb(interpolator(t)).formatHex()).join(', ') +
+  ')';
+
+// ── 치수 ────────────────────────────────────────────────────────
+const W = 298, H = 208;
+const margin = { top: 20, right: 4, bottom: 4, left: 38 };
+const iW = W - margin.left - margin.right;
+const iH = H - margin.top - margin.bottom;
+
+function drawHeatmap(selector, color) {
+  const svg = d3.select(selector).append('svg').attr('width', W).attr('height', H);
+  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+  const xb = d3.scaleBand().domain(cols).range([0, iW]).padding(0.05);
+  const yb = d3.scaleBand().domain(rows).range([0, iH]).padding(0.05);
+
+  const cells = g.append('g')
+    .selectAll('g')
+    .data(data)
+    .join('g');
+
+  cells.append('rect')
+    .attr('x', d => xb(d.col))
+    .attr('y', d => yb(d.row))
+    .attr('width', xb.bandwidth())
+    .attr('height', yb.bandwidth())
+    .attr('fill', d => color(d.value));
+
+  // 행 레이블
+  g.append('g')
+    .selectAll('text')
+    .data(rows)
+    .join('text')
+      .attr('x', -8)
+      .attr('y', d => yb(d) + yb.bandwidth() / 2)
+      .attr('dy', '0.32em')
+      .style('text-anchor', 'end')
+      .style('font-size', '11px')
+      .style('fill', '#999999')
+      .text(d => d);
+
+  // 열 레이블 (차트 위)
+  g.append('g')
+    .selectAll('text')
+    .data(cols)
+    .join('text')
+      .attr('x', d => xb(d) + xb.bandwidth() / 2)
+      .attr('y', -7)
+      .style('text-anchor', 'middle')
+      .style('font-size', '11px')
+      .style('fill', '#999999')
+      .text(d => d);
+}
+
+// ── 범례 (연속 그라디언트 + 양끝 값) ────────────────────────────
+function drawLegend(selector, interpolator) {
+  const el = d3.select(selector);
+  el.append('span').attr('class', 'legend-label').text('-4°C');
+  el.append('span')
+    .attr('class', 'legend-bar')
+    .style('background', gradientCss(interpolator));
+  el.append('span').attr('class', 'legend-label').text('+4°C');
+}
+
+drawHeatmap('#chart-worse', seqColor);
+drawHeatmap('#chart-better', divColor);
+drawLegend('#legend-worse', d3.interpolateLab('#f0efff', '#4a4ae8'));
+drawLegend('#legend-better', divInterpolator);
+</script>
+</body>
+</html>

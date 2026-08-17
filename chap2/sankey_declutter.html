@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>작은 흐름은 정리하고 필요한 값만 보여주기</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<script src="https://cdn.jsdelivr.net/npm/d3-sankey@0.12.3/dist/d3-sankey.min.js"></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Pretendard', 'Noto Sans KR', sans-serif;
+    background: #fff;
+    padding: 40px 20px;
+  }
+  .container { max-width: 620px; margin: 0; }
+
+  .compare-wrap {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  .panel {
+    flex: 1 1 236px;
+  }
+  .panel-header {
+    font-size: 13px;
+    font-weight: 500;
+    color: #363636;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-bottom: 8px;
+    margin-bottom: 14px;
+    border-bottom: 1px solid #ddd;
+  }
+  .badge {
+    font-size: 12px;
+    font-weight: 700;
+    border-radius: 4px;
+    padding: 3px 10px;
+    color: #ffffff;
+    letter-spacing: 0.03em;
+    flex-shrink: 0;
+  }
+  .badge-better { background: #37760a; }
+  .badge-worse  { background: #b8351b; }
+
+  .node-label { font-size: 10px; fill: #363636; font-weight: 600; }
+  .value-label { fill: #636363; }
+  .value-label-worse { font-size: 7px; fill: #111111; }
+  .value-label-better { font-size: 9.5px; fill: #111111; font-weight: 600; }
+
+  .result {
+    font-size: 13px;
+    line-height: 17px;
+    font-weight: 400;
+    color: #363636;
+    margin-top: 10px;
+  }
+  .result strong { font-weight: 700; }
+
+  .note, .source {
+    font-size: 13px;
+    line-height: 17px;
+    font-weight: 400;
+    color: #777777;
+    margin-top: 16px;
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <div class="compare-wrap">
+      <div class="panel">
+        <div class="panel-header">
+          <span class="badge badge-worse">Worse</span>
+          <span class="panel-desc">모든 흐름 · 모든 값 표시</span>
+        </div>
+        <div id="chart-worse"></div>
+        <p class="result"><strong>결과:</strong> 얇은 잔가지가 얽히고 숫자가 빽빽해 어느 경로가 중요한지 보이지 않습니다.</p>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <span class="badge badge-better">Better</span>
+          <span class="panel-desc">작은 흐름 기타로 · 핵심 값만</span>
+        </div>
+        <div id="chart-better"></div>
+        <p class="result"><strong>결과:</strong> 작은 채널을 묶고 핵심 경로만 표시해 주요 흐름이 또렷합니다.</p>
+      </div>
+    </div>
+
+    <p class="note">* 유입 채널별 전환 결과를 나타낸 가상 데이터입니다 (실제 통계 아님). 오른쪽은 비중 5% 미만 채널을 '기타'로 통합했습니다.</p>
+  </div>
+
+<script>
+// ── 데이터 (유입 채널 → 전환 결과) ─────────────────────────────
+// 값이 큰 채널(검색·SNS·직접)과 작은 채널(이메일·제휴·배너·추천)
+const outNames = ['구매', '가입', '이탈'];
+
+const fullSources = [
+  { name: '검색',   flows: { 구매: 90, 가입: 70, 이탈: 180 } },
+  { name: 'SNS',    flows: { 구매: 40, 가입: 110, 이탈: 150 } },
+  { name: '직접',   flows: { 구매: 80, 가입: 40, 이탈: 50 } },
+  { name: '이메일', flows: { 구매: 20, 가입: 25, 이탈: 30 } },
+  { name: '제휴',   flows: { 구매: 15, 가입: 10, 이탈: 20 } },
+  { name: '배너',   flows: { 구매: 5,  가입: 8,  이탈: 22 } },
+  { name: '추천',   flows: { 구매: 10, 가입: 12, 이탈: 8 } }
+];
+
+// Better: 작은 채널 4개를 '기타'로 통합
+const bigNames = ['검색', 'SNS', '직접'];
+const mergedSources = (() => {
+  const etc = { 구매: 0, 가입: 0, 이탈: 0 };
+  const kept = [];
+  fullSources.forEach(s => {
+    if (bigNames.includes(s.name)) kept.push(s);
+    else outNames.forEach(o => etc[o] += s.flows[o]);
+  });
+  kept.push({ name: '기타', flows: etc });
+  return kept;
+})();
+
+const W = 298, H = 236;
+const LINK_COLOR = '#6565FF';
+const BAR_COLOR = '#333333';
+
+function buildGraph(sources) {
+  const srcNames = sources.map(s => s.name);
+  const nodeNames = srcNames.concat(outNames);
+  const idOf = new Map(nodeNames.map((n, i) => [n, i]));
+  const links = [];
+  sources.forEach(s => {
+    outNames.forEach(o => {
+      if (s.flows[o] > 0) links.push({ source: idOf.get(s.name), target: idOf.get(o), value: s.flows[o], srcName: s.name, tgtName: o });
+    });
+  });
+  return { nodeNames, links };
+}
+
+function drawSankey(selector, { sources, labelMode, isBetter = false }) {
+  const margin = { top: 10, right: 40, bottom: 10, left: 40 };
+  const iW = W - margin.left - margin.right;
+  const iH = H - margin.top - margin.bottom;
+
+  const { nodeNames, links } = buildGraph(sources);
+
+  const svg = d3.select(selector).append('svg').attr('width', W).attr('height', H);
+  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+  const sankey = d3.sankey()
+    .nodeId(d => d.id)
+    .nodeWidth(10)
+    .nodePadding(labelMode === 'all' ? 7 : 14)
+    .nodeSort(null)
+    .extent([[0, 0], [iW, iH]]);
+
+  const graph = sankey({
+    nodes: nodeNames.map((n, i) => ({ id: i, name: n })),
+    links: links.map(l => ({ ...l }))
+  });
+
+  const maxVal = d3.max(graph.links, d => d.value);
+
+  // 강조 링크(구매)를 마지막에 그려 위로 오게 함
+  const linkData = [...graph.links].sort((a, b) =>
+    (a.tgtName === '구매' ? 1 : 0) - (b.tgtName === '구매' ? 1 : 0));
+
+  // 링크
+  g.append('g')
+    .attr('fill', 'none')
+    .selectAll('path')
+    .data(linkData)
+    .join('path')
+      .attr('d', d3.sankeyLinkHorizontal())
+      .attr('stroke', LINK_COLOR)
+      .attr('stroke-width', d => Math.max(1, d.width))
+      .attr('stroke-opacity', d => isBetter ? (d.tgtName === '구매' ? 0.8 : 0.42) : 0.65);
+
+  // 노드 바 (#333, 3px, 링크에 붙게)
+  g.append('g')
+    .selectAll('rect')
+    .data(graph.nodes)
+    .join('rect')
+      .attr('x', d => d.x0 < iW / 2 ? d.x1 - 3 : d.x0)
+      .attr('y', d => d.y0)
+      .attr('width', 3)
+      .attr('height', d => Math.max(2, d.y1 - d.y0))
+      .attr('fill', BAR_COLOR);
+
+  // 노드 라벨 (왼쪽 바깥 / 오른쪽 바깥)
+  g.append('g')
+    .selectAll('text')
+    .data(graph.nodes)
+    .join('text')
+      .attr('class', 'node-label')
+      .attr('x', d => d.x0 < iW / 2 ? d.x0 - 6 : d.x1 + 6)
+      .attr('y', d => (d.y0 + d.y1) / 2)
+      .attr('dy', '0.32em')
+      .attr('text-anchor', d => d.x0 < iW / 2 ? 'end' : 'start')
+      .text(d => d.name);
+
+  // 값 레이블 — Worse: 모든 링크 / Better: 구매 연결 링크만
+  const valueLinks = isBetter ? graph.links.filter(d => d.tgtName === '구매') : graph.links;
+  g.append('g')
+    .selectAll('text')
+    .data(valueLinks)
+    .join('text')
+      .attr('class', isBetter ? 'value-label value-label-better' : 'value-label value-label-worse')
+      .attr('x', d => (d.source.x1 + d.target.x0) / 2)
+      .attr('y', d => (d.y0 + d.y1) / 2)
+      .attr('dy', '0.32em')
+      .attr('text-anchor', 'middle')
+      .text(d => d.value);
+}
+
+drawSankey('#chart-worse', { sources: fullSources, labelMode: 'all' });
+drawSankey('#chart-better', { sources: mergedSources, labelMode: 'top', isBetter: true });
+</script>
+</body>
+</html>

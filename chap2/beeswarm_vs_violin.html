@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>비스웜 vs 바이올린 플롯</title>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Pretendard', 'Noto Sans KR', sans-serif; background: #fff; padding: 40px 20px; }
+
+    .panels { display: flex; gap: 24px; align-items: flex-start; }
+
+    .panel { border: 1px solid #aaa; padding: 16px; }
+
+    .panel-label {
+      font-size: 13px; font-weight: 500; color: #363636;
+      display: flex; align-items: center; gap: 8px;
+      padding-bottom: 8px; margin-bottom: 14px;
+      border-bottom: 1px solid #ddd;
+    }
+    .badge {
+      font-size: 12px; font-weight: 700; border-radius: 4px;
+      padding: 3px 10px; color: #fff; letter-spacing: 0.03em;
+      flex-shrink: 0;
+    }
+    .badge-worse  { background: #b8351b; }
+    .badge-better { background: #37760a; }
+
+    .tooltip {
+      position: fixed; pointer-events: none;
+      background: rgba(255,255,255,0.95); border: 1px solid #c6c6c6;
+      border-radius: 4px; padding: 8px 12px; font-size: 13px; color: #636363;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08); display: none;
+    }
+    .tooltip strong { font-size: 14px; color: #454545; display: block; margin-bottom: 2px; }
+  </style>
+</head>
+<body>
+
+<div class="panels">
+  <!-- Worse: Beeswarm -->
+  <div class="panel">
+    <p class="panel-label">
+      <span class="badge badge-worse">Worse</span>
+      점이 뭉쳐 분포 형태를 읽기 어려움
+    </p>
+    <div id="chart-bsw"></div>
+  </div>
+
+  <!-- Better: Violin -->
+  <div class="panel">
+    <p class="panel-label">
+      <span class="badge badge-better">Better</span>
+      곡선이 밀집 구간을 선명하게 압축
+    </p>
+    <div id="chart-vln"></div>
+  </div>
+</div>
+
+<div class="tooltip" id="tooltip">
+  <strong id="tt-name"></strong>
+  <span id="tt-val"></span>
+</div>
+
+<script>
+  const FONT   = "Pretendard,'Noto Sans KR',sans-serif";
+  const groups = ['A', 'B', 'C'];
+
+  /* ── 공유 데이터 (100개/그룹) ── */
+  const rawData = [];
+  const bases   = { A: 28, B: 42, C: 18 };
+  const spreads = { A: 14, B: 17, C: 11 };
+
+  groups.forEach(grp => {
+    for (let i = 0; i < 100; i++) {
+      const v = bases[grp]
+        + Math.sin(i * 1.9 + grp.charCodeAt(0) * 0.4) * spreads[grp]
+        + Math.cos(i * 0.7 + i * 0.13) * (spreads[grp] * 0.5)
+        + Math.sin(i * 0.31) * (spreads[grp] * 0.3);
+      rawData.push({ group: grp, value: Math.max(2, Math.min(69, v)) });
+    }
+  });
+
+  /* ── 공유 치수 ── */
+  const W  = 236, H = 260;
+  const M  = { top: 6, right: 16, bottom: 30, left: 36 };
+  const iW = W - M.left - M.right;   // 184
+  const iH = H - M.top  - M.bottom;  // 224
+
+  /* ── 공유 스케일 ── */
+  const xScale = d3.scaleLinear().domain([0, 70]).range([0, iW]);
+  const yScale = d3.scaleBand().domain(groups).range([0, iH]).padding(0.2);
+  const xTicks = [0, 20, 40, 60];
+
+  /* ── 공통 축/그리드 그리기 ── */
+  function drawAxes(g) {
+    /* 그리드 */
+    g.selectAll('line.grid').data(xTicks.slice(1)).join('line')
+      .attr('x1', d => xScale(d)).attr('x2', d => xScale(d))
+      .attr('y1', 0).attr('y2', iH)
+      .style('stroke', '#aaaaaa').style('stroke-dasharray', '2').style('stroke-opacity', 0.4);
+    /* zero line */
+    g.append('line')
+      .attr('x1', xScale(0)).attr('x2', xScale(0))
+      .attr('y1', 0).attr('y2', iH)
+      .style('stroke', '#363636').style('stroke-opacity', 0.4);
+    /* X축 */
+    g.append('g').attr('transform', `translate(0,${iH})`)
+      .call(d3.axisBottom(xScale).tickValues(xTicks).tickSize(0).tickPadding(8))
+      .call(a => a.select('.domain').remove())
+      .selectAll('text').style('font-size', '13px').style('fill', '#999999').style('font-family', FONT);
+    /* Y축 */
+    g.append('g')
+      .call(d3.axisLeft(yScale).tickSize(0).tickPadding(10))
+      .call(a => a.select('.domain').remove())
+      .selectAll('text').style('font-size', '13px').style('fill', '#636363').style('font-family', FONT);
+  }
+
+  /* ── 클립패스 공장 ── */
+  function makeClip(svg, id) {
+    svg.append('defs')
+      .append('clipPath').attr('id', id)
+      .append('rect')
+        .attr('x', 0).attr('y', -M.top)
+        .attr('width', 0).attr('height', iH + M.top + 4)
+        .transition().duration(800).ease(d3.easeCubicInOut)
+        .attr('width', iW + M.right);
+  }
+
+  /* ══════════════════════════════════════
+     WORSE — Beeswarm (100점/그룹, 뭉침)
+  ══════════════════════════════════════ */
+  const svgB = d3.select('#chart-bsw').append('svg')
+    .attr('width', W).attr('height', H);
+  const gB = svgB.append('g').attr('transform', `translate(${M.left},${M.top})`);
+  drawAxes(gB);
+  makeClip(svgB, 'clip-bsw');
+
+  const RADIUS_B = 2;
+  const bswNodes = rawData.map(d => ({
+    ...d,
+    tx: xScale(d.value),
+    ty: yScale(d.group) + yScale.bandwidth() / 2
+  }));
+
+  d3.forceSimulation(bswNodes)
+    .force('x', d3.forceX(d => d.tx).strength(1))
+    .force('y', d3.forceY(d => d.ty).strength(0.9))
+    .force('collide', d3.forceCollide(RADIUS_B + 0.5))
+    .stop().tick(120);
+
+  const tooltip = document.getElementById('tooltip');
+  const ttName  = document.getElementById('tt-name');
+  const ttVal   = document.getElementById('tt-val');
+
+  gB.append('g').attr('clip-path', 'url(#clip-bsw)')
+    .selectAll('circle').data(bswNodes).join('circle')
+      .attr('cx', d => d.x).attr('cy', d => d.y)
+      .attr('r', RADIUS_B)
+      .attr('fill', '#a4a4a4').attr('fill-opacity', 0.55)
+      .attr('stroke', '#fff').attr('stroke-width', 0.4)
+      .on('mousemove', function(event, d) {
+        d3.select(this).attr('fill', '#6565FF').attr('fill-opacity', 1);
+        ttName.textContent = `그룹 ${d.group}`;
+        ttVal.textContent  = `값: ${d.value.toFixed(1)}`;
+        tooltip.style.display = 'block';
+        tooltip.style.left = (event.clientX + 14) + 'px';
+        tooltip.style.top  = (event.clientY - 28) + 'px';
+      })
+      .on('mouseleave', function() {
+        d3.select(this).attr('fill', '#a4a4a4').attr('fill-opacity', 0.55);
+        tooltip.style.display = 'none';
+      });
+
+  /* ══════════════════════════════════════
+     BETTER — Violin Plot
+  ══════════════════════════════════════ */
+  const svgV = d3.select('#chart-vln').append('svg')
+    .attr('width', W).attr('height', H);
+  const gV = svgV.append('g').attr('transform', `translate(${M.left},${M.top})`);
+  drawAxes(gV);
+  makeClip(svgV, 'clip-vln');
+
+  /* KDE — Epanechnikov kernel */
+  function kde(kernel, thresholds, data) {
+    return thresholds.map(x => [x, d3.mean(data, v => kernel(x - v))]);
+  }
+  function epanechnikov(bw) {
+    return v => Math.abs(v /= bw) <= 1 ? 0.75 * (1 - v * v) / bw : 0;
+  }
+
+  const BW      = 7;   /* KDE bandwidth */
+  const halfBand = yScale.bandwidth() / 2;
+
+  /* 그룹별 데이터 범위에 맞춰 KDE 포인트 제한 → tail 제거 */
+  const densities = groups.map(grp => {
+    const values    = rawData.filter(d => d.group === grp).map(d => d.value);
+    const [lo, hi]  = d3.extent(values);
+    const pts       = d3.range(Math.max(0, lo - BW), Math.min(70, hi + BW), 0.5);
+    const dens      = kde(epanechnikov(BW), pts, values);
+    return { grp, dens };
+  });
+
+  /* 전체 최대 밀도로 글로벌 정규화 → 그룹 간 밀도 비교 일관성 */
+  const globalMaxD = d3.max(densities, g => d3.max(g.dens, d => d[1]));
+  const vScale     = d3.scaleLinear().domain([0, globalMaxD]).range([0, halfBand * 0.9]);
+
+  const vlnG = gV.append('g').attr('clip-path', 'url(#clip-vln)');
+
+  densities.forEach(({ grp, dens }) => {
+    const cy   = yScale(grp) + halfBand;
+    const area = d3.area()
+      .x(d => xScale(d[0]))
+      .y0(d => cy - vScale(d[1]))
+      .y1(d => cy + vScale(d[1]))
+      .curve(d3.curveCatmullRom.alpha(0.5));
+
+    vlnG.append('path')
+      .datum(dens)
+      .attr('d', area)
+      .attr('fill', '#6565FF')
+      .attr('fill-opacity', 0.45)
+      .attr('stroke', '#6565FF')
+      .attr('stroke-width', 1.2)
+      .attr('stroke-opacity', 0.75);
+  });
+</script>
+</body>
+</html>

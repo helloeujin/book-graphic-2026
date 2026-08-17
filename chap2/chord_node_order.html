@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>노드를 의미 있는 순서로 배치하기</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Pretendard', 'Noto Sans KR', sans-serif;
+    background: #fff;
+    padding: 40px 20px;
+  }
+  .container { max-width: 620px; margin: 0; }
+
+  .compare-wrap {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  .panel {
+    flex: 1 1 236px;
+  }
+  .panel-header {
+    font-size: 13px;
+    font-weight: 500;
+    color: #363636;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-bottom: 8px;
+    margin-bottom: 14px;
+    border-bottom: 1px solid #ddd;
+  }
+  .badge {
+    font-size: 12px;
+    font-weight: 700;
+    border-radius: 4px;
+    padding: 3px 10px;
+    color: #ffffff;
+    letter-spacing: 0.03em;
+    flex-shrink: 0;
+  }
+  .badge-better { background: #37760a; }
+  .badge-worse  { background: #b8351b; }
+
+  .arc-label { font-size: 10px; fill: #363636; font-weight: 500; }
+
+  .result {
+    font-size: 13px;
+    line-height: 17px;
+    font-weight: 400;
+    color: #363636;
+    margin-top: 10px;
+  }
+  .result strong { font-weight: 700; }
+
+  .note, .source {
+    font-size: 13px;
+    line-height: 17px;
+    font-weight: 400;
+    color: #777777;
+    margin-top: 16px;
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <div class="compare-wrap">
+      <div class="panel">
+        <div class="panel-header">
+          <span class="badge badge-worse">Worse</span>
+          <span class="panel-desc">강한 상대가 원 반대편</span>
+        </div>
+        <div id="chart-worse"></div>
+        <p class="result"><strong>결과:</strong> 많이 교류하는 권역이 서로 멀리 떨어져 리본이 길게 가로지르고 교차가 심합니다.</p>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <span class="badge badge-better">Better</span>
+          <span class="panel-desc">교류 많은 권역끼리 인접</span>
+        </div>
+        <div id="chart-better"></div>
+        <p class="result"><strong>결과:</strong> 가까이 배치하니 리본이 짧아지고 교차가 줄어 관계를 따라가기 쉽습니다.</p>
+      </div>
+    </div>
+
+    <p class="note">* 권역 간 교역량을 나타낸 가상 데이터입니다 (실제 통계 아님)</p>
+  </div>
+
+<script>
+// ── 교류 행렬 (권역 간 교역량, 대칭) ────────────────────────────
+// 두 군집 {동아·동남·오세}, {서유·북유·북미}이 내부적으로 강하게 교류하되,
+// 그룹 간에도 약한 교류가 골고루 존재 (현실적인 흐릿한 군집 구조)
+const regions = ['동아시아', '동남아', '오세아니아', '서유럽', '북유럽', '북미'];
+// 인덱스:        0          1        2            3         4        5
+const matrix = [
+  //           동아  동남  오세  서유  북유  북미
+  /*동아*/    [   0,  92,  64,  14,   9,  16 ],
+  /*동남*/    [  92,   0,  78,  10,   7,  11 ],
+  /*오세*/    [  64,  78,   0,   8,   6,  22 ],
+  /*서유*/    [  14,  10,   8,   0,  88,  90 ],
+  /*북유*/    [   9,   7,   6,  88,   0,  34 ],
+  /*북미*/    [  16,  11,  22,  90,  34,   0 ]
+];
+
+// 색: 두 군집을 구분 — 색 그룹이 곧 근접 그룹이라 순서 메시지를 보강
+const blockColor = { 0: '#0b66d6', 1: '#0b66d6', 2: '#0b66d6', 3: '#c95c03', 4: '#c95c03', 5: '#c95c03' };
+
+// 순서 정의 (전수 탐색으로 교차 최대/최소 배치)
+// Worse: 강한 상대를 원 반대편에 두어 리본이 중앙을 횡단
+const worseOrder = [0, 2, 3, 1, 5, 4];  // 동아·오세·서유·동남·북미·북유
+// Better: 강하게 연결된 권역끼리 인접
+const betterOrder = [0, 1, 2, 5, 3, 4];  // 동아·동남·오세 | 북미·서유·북유
+
+const W = 298, H = 250;
+
+function drawChord(selector, order) {
+  const svg = d3.select(selector).append('svg')
+    .attr('width', W).attr('height', H)
+    .attr('viewBox', `${-W / 2} ${-H / 2} ${W} ${H}`);
+  const g = svg.append('g');
+
+  const R = Math.min(W, H) / 2 - 26;
+
+  // order대로 행렬 재배열
+  const m = order.map(r => order.map(c => matrix[r][c]));
+
+  const chord = d3.chord().padAngle(0.06).sortSubgroups(d3.descending)(m);
+
+  const arc = d3.arc().innerRadius(R).outerRadius(R + 8);
+  const ribbon = d3.ribbon().radius(R);
+
+  // 리본 (교류) — 출발 그룹 색, 굵기는 교역량
+  g.append('g')
+    .attr('fill-opacity', 0.55)
+    .selectAll('path')
+    .data(chord)
+    .join('path')
+      .attr('d', ribbon)
+      .attr('fill', d => blockColor[order[d.source.index]])
+      .attr('stroke', 'none');
+
+  // 호 (노드)
+  g.append('g')
+    .selectAll('path')
+    .data(chord.groups)
+    .join('path')
+      .attr('d', arc)
+      .attr('fill', d => blockColor[order[d.index]]);
+
+  // 라벨
+  g.append('g')
+    .selectAll('text')
+    .data(chord.groups)
+    .join('text')
+      .attr('class', 'arc-label')
+      .each(d => { d.angle = (d.startAngle + d.endAngle) / 2; })
+      .attr('transform', d => {
+        const a = d.angle - Math.PI / 2;
+        const r = R + 14;
+        return `translate(${Math.cos(a) * r},${Math.sin(a) * r})`;
+      })
+      .attr('text-anchor', d => (d.angle > Math.PI ? 'end' : 'start'))
+      .attr('dy', '0.32em')
+      .text(d => regions[order[d.index]]);
+}
+
+drawChord('#chart-worse', worseOrder);
+drawChord('#chart-better', betterOrder);
+</script>
+</body>
+</html>

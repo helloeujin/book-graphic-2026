@@ -54,7 +54,7 @@
 <script>
 const groupKeys  = ['fossil','nuclear','renew'];
 const groupNames = { fossil:'화석연료', nuclear:'원자력', renew:'재생에너지' };
-const colors     = { fossil:'#6565FF', nuclear:'#a4a4a4', renew:'#8E8EFF' };
+const colors     = { fossil:'#6565FF', nuclear:'#777777', renew:'#bfbfbf' };
 const FONT       = "Pretendard,'Noto Sans KR',sans-serif";
 
 const rawData = [
@@ -176,11 +176,11 @@ const lineGen = d3.line()
 series.forEach((layer, i) => {
   const k = groupKeys[i];
   svg.append('path').datum(layer)
-    .attr('fill', colors[k]).attr('fill-opacity', 0.75)
+    .attr('fill', colors[k]).attr('fill-opacity', 0.4)
     .attr('d', areaGen);
   svg.append('path').datum(layer)
     .attr('fill','none').attr('stroke', colors[k])
-    .attr('stroke-width', 1.5).attr('d', lineGen);
+    .attr('stroke-width', 1.5).attr('stroke-opacity', 1).attr('d', lineGen);
 });
 </script>
 </body>

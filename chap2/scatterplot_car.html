@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>색상과 라벨은 꼭 필요한 경우에만</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Pretendard', 'Noto Sans KR', sans-serif;
+    background: #fff;
+    padding: 40px 20px;
+  }
+  .container { max-width: 620px; margin: 0 auto; }
+
+  h1 {
+    font-size: 17px; line-height: 22px; font-weight: 700;
+    color: #363636; padding-bottom: 5px;
+  }
+  .dek {
+    font-size: 15px; line-height: 19px; font-weight: 400;
+    color: #777777; padding-bottom: 10px;
+  }
+
+  .compare-wrap {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  .panel {
+    flex: 1 1 236px;
+  }
+  .panel-header {
+    font-size: 13px;
+    font-weight: 500;
+    color: #363636;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-bottom: 8px;
+    margin-bottom: 14px;
+    border-bottom: 1px solid #ddd;
+  }
+  .badge {
+    font-size: 12px;
+    font-weight: 700;
+    border-radius: 4px;
+    padding: 3px 10px;
+    color: #ffffff;
+    letter-spacing: 0.03em;
+    flex-shrink: 0;
+  }
+  .badge-better { background: #37760a; }
+  .badge-worse  { background: #b8351b; }
+
+  .axis text { font-size: 13px; fill: #999999; }
+
+  .note, .source {
+    font-size: 13px;
+    line-height: 17px;
+    font-weight: 400;
+    color: #777777;
+    margin-top: 16px;
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <h1>색상과 라벨은 꼭 필요한 경우에만</h1>
+    <p class="dek">모든 점에 다른 색과 라벨을 붙이면 개별 데이터가 먼저 눈에 들어와, 무게가 늘수록 연비가 낮아지는 관계 자체는 오히려 가려진다</p>
+
+    <div class="compare-wrap">
+      <div class="panel">
+        <div class="panel-header">
+          <span class="badge badge-worse">Worse</span>
+          <span class="panel-desc">점마다 다른 색 + 모든 점 라벨</span>
+        </div>
+        <div id="chart-worse"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <span class="badge badge-better">Better</span>
+          <span class="panel-desc">단색 + 극단값만 라벨</span>
+        </div>
+        <div id="chart-better"></div>
+      </div>
+    </div>
+
+    <p class="note">* 자동차 무게(kg)와 연비(km/L)를 나타낸 가상 데이터입니다 (실제 통계 아님)</p>
+  </div>
+
+<script>
+// ── 데이터 생성 (고정 시드 — 매번 동일한 결과) ──────────────────
+const rng = d3.randomLcg(0.77);
+const rUniform = d3.randomUniform.source(rng);
+const rNormal = d3.randomNormal.source(rng);
+
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+const carTypes = ['세단', 'SUV', '해치백', '왜건', '쿠페', '밴', '픽업'];
+
+const genWeight = rUniform(950, 2100);
+const genNoise = rNormal(0, 1.3);
+
+const data = [];
+for (let i = 0; i < 34; i++) {
+  const weight = genWeight();
+  const eff = clamp(26 - 0.0095 * weight + genNoise(), 3, 24);
+  data.push({
+    weight, eff,
+    isOutlier: false,
+    label: carTypes[i % carTypes.length] + (i + 1)
+  });
+}
+// 극단값 2개 — 무거운데 연비 좋은 하이브리드, 가벼운데 연비 나쁜 스포츠카
+data.push({ weight: 1950, eff: 19, isOutlier: true, label: '하이브리드 SUV' });
+data.push({ weight: 1050, eff: 7,  isOutlier: true, label: '스포츠카' });
+
+// 의미 없는 개별 색상 (구분할 그룹이 없는데도 점마다 다른 색)
+const noisyColors = ['#cc2b0c', '#0b66d6', '#3b8601', '#824cd5', '#c95c03', '#ca286d', '#eaba04', '#0278c7', '#029e94'];
+
+// ── 공통 스케일 ────────────────────────────────────────────────
+const W = 298, H = 200;
+const margin = { top: 6, right: 70, bottom: 30, left: 50 };
+const iW = W - margin.left - margin.right;
+const iH = H - margin.top - margin.bottom;
+
+const x = d3.scaleLinear().domain([900, 2200]).range([0, iW]);
+const y = d3.scaleLinear().domain([0, 25]).range([iH, 0]);
+const xTicks = [1000, 1400, 1800, 2200];
+const yTicks = [0, 10, 20];
+
+function drawAxes(g) {
+  g.selectAll('.grid').data(yTicks).join('line')
+    .attr('class', 'grid')
+    .attr('x1', 0).attr('x2', iW)
+    .attr('y1', d => y(d)).attr('y2', d => y(d))
+    .style('stroke', '#aaaaaa')
+    .style('stroke-dasharray', '2')
+    .style('stroke-opacity', 0.4);
+
+  g.append('g').attr('class', 'axis')
+    .call(d3.axisLeft(y).tickValues(yTicks).tickSize(0).tickPadding(6))
+    .call(a => a.select('.domain').remove())
+    .selectAll('text').style('text-anchor', 'end');
+
+  g.append('g').attr('class', 'axis')
+    .attr('transform', `translate(0,${iH})`)
+    .call(d3.axisBottom(x).tickValues(xTicks).tickSize(4).tickPadding(8))
+    .call(a => a.select('.domain').remove())
+    .call(a => a.selectAll('.tick line').style('stroke', '#aaaaaa'));
+}
+
+// ── Worse: 점마다 다른 색 + 모든 점 라벨 ──────────────────────
+{
+  const svg = d3.select('#chart-worse').append('svg').attr('width', W).attr('height', H);
+  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+  drawAxes(g);
+
+  g.append('g')
+    .selectAll('circle')
+    .data(data)
+    .join('circle')
+      .attr('cx', d => x(d.weight))
+      .attr('cy', d => y(d.eff))
+      .attr('r', 4)
+      .attr('fill', (d, i) => noisyColors[i % noisyColors.length])
+      .attr('stroke', 'none');
+
+  g.append('g')
+    .selectAll('text')
+    .data(data)
+    .join('text')
+      .attr('x', d => x(d.weight) + 5)
+      .attr('y', d => y(d.eff) - 5)
+      .style('font-size', '7px')
+      .style('fill', '#555555')
+      .text(d => d.label);
+}
+
+// ── Better: 단색 + 극단값만 라벨 ───────────────────────────────
+{
+  const svg = d3.select('#chart-better').append('svg').attr('width', W).attr('height', H);
+  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+  drawAxes(g);
+
+  g.append('g')
+    .selectAll('circle')
+    .data(data)
+    .join('circle')
+      .attr('cx', d => x(d.weight))
+      .attr('cy', d => y(d.eff))
+      .attr('r', 4)
+      .attr('fill', '#6565FF')
+      .attr('fill-opacity', d => d.isOutlier ? 1 : 0.75)
+      .attr('stroke', 'none');
+
+  g.append('g')
+    .selectAll('text')
+    .data(data.filter(d => d.isOutlier))
+    .join('text')
+      .attr('x', d => x(d.weight) + 6)
+      .attr('y', d => d.label === '스포츠카' ? y(d.eff) + 12 : y(d.eff) - 6)
+      .style('font-size', '10px')
+      .style('font-weight', 500)
+      .style('fill', '#363636')
+      .text(d => d.label);
+}
+</script>
+</body>
+</html>

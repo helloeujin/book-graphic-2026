@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>관계가 잘 드러나는 레이아웃 선택하기</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Pretendard', 'Noto Sans KR', sans-serif;
+    background: #fff;
+    padding: 40px 20px;
+  }
+  .container { max-width: 620px; margin: 0; }
+
+  .compare-wrap {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  .panel {
+    flex: 1 1 236px;
+  }
+  .panel-header {
+    font-size: 13px;
+    font-weight: 500;
+    color: #363636;
+    padding-bottom: 8px;
+    margin-bottom: 14px;
+    border-bottom: 1px solid #ddd;
+  }
+
+  .node-label { font-size: 10px; fill: #363636; }
+
+  .result {
+    font-size: 13px;
+    line-height: 17px;
+    font-weight: 400;
+    color: #363636;
+    margin-top: 10px;
+  }
+
+  .note, .source {
+    font-size: 13px;
+    line-height: 17px;
+    font-weight: 400;
+    color: #777777;
+    margin-top: 16px;
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <div class="compare-wrap">
+      <div class="panel">
+        <div class="panel-header">위계 데이터 — 계층형 레이아웃</div>
+        <div id="chart-tree"></div>
+        <p class="result">조직도처럼 위아래 관계가 중요한 데이터는 계층형이 상하 흐름을 분명히 보여줍니다.</p>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">군집 데이터 — 포스 레이아웃</div>
+        <div id="chart-force"></div>
+        <p class="result">친구 관계처럼 그룹 구조가 중요한 데이터는 포스 레이아웃이 뭉치는 무리를 자연스럽게 드러냅니다.</p>
+      </div>
+    </div>
+
+    <p class="note">* 개념 설명을 위해 만든 가상 네트워크입니다 (실제 관계 아님)</p>
+  </div>
+
+<script>
+const W = 298, H = 260;
+const NODE_FILL = '#6565FF';
+const LINK_STROKE = '#b9b9f2';
+
+// ══ 왼쪽: 계층형 (조직도) ═══════════════════════════════════════
+{
+  const hierarchy = {
+    name: '대표',
+    children: [
+      { name: '개발', children: [{ name: '프론트' }, { name: '백엔드' }, { name: 'AI' }] },
+      { name: '디자인', children: [{ name: 'UX' }, { name: '그래픽' }] },
+      { name: '운영', children: [{ name: '마케팅' }, { name: '영업' }, { name: 'CS' }] }
+    ]
+  };
+
+  const margin = { top: 18, right: 12, bottom: 20, left: 12 };
+  const iW = W - margin.left - margin.right;
+  const iH = H - margin.top - margin.bottom;
+
+  const root = d3.hierarchy(hierarchy);
+  d3.tree().size([iW, iH])(root);
+
+  const svg = d3.select('#chart-tree').append('svg').attr('width', W).attr('height', H);
+  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+  // 링크 (부모→자식)
+  g.append('g')
+    .selectAll('path')
+    .data(root.links())
+    .join('path')
+      .attr('d', d3.linkVertical().x(d => d.x).y(d => d.y))
+      .attr('fill', 'none')
+      .attr('stroke', LINK_STROKE)
+      .attr('stroke-width', 1);
+
+  // 노드
+  g.append('g')
+    .selectAll('circle')
+    .data(root.descendants())
+    .join('circle')
+      .attr('cx', d => d.x).attr('cy', d => d.y)
+      .attr('r', d => d.depth === 0 ? 7 : 5)
+      .attr('fill', NODE_FILL)
+      .attr('stroke', '#fff')
+      .attr('stroke-width', 1);
+
+  }
+
+// ══ 오른쪽: 포스 (군집이 있는 친구 관계) ════════════════════════
+// 배치는 참고 이미지의 노드 위치를 그대로 고정 좌표로 옮김 (정규 좌표 0~1)
+{
+  const norm = {
+    // 그룹 A (좌상)
+    a1: [0.18, 0.17], a2: [0.31, 0.22], a3: [0.09, 0.35], a4: [0.235, 0.42], a5: [0.14, 0.55],
+    // 그룹 B (우상)
+    b1: [0.65, 0.13], b2: [0.79, 0.22], b3: [0.70, 0.39], b4: [0.86, 0.46], b5: [0.585, 0.53],
+    // 그룹 C (하단)
+    c1: [0.43, 0.66], c2: [0.62, 0.78], c3: [0.31, 0.85], c4: [0.49, 0.91], c5: [0.73, 0.91]
+  };
+
+  const pad = 16;
+  const nodes = Object.entries(norm).map(([id, [nx, ny]]) => ({
+    id,
+    x: pad + nx * (W - 2 * pad),
+    y: pad + ny * (H - 2 * pad)
+  }));
+  const pos = new Map(nodes.map(n => [n.id, n]));
+
+  const edgedefs = [
+    // 그룹 A 내부
+    ['a1', 'a2'], ['a1', 'a3'], ['a1', 'a4'], ['a2', 'a4'], ['a3', 'a4'], ['a3', 'a5'], ['a4', 'a5'],
+    // 그룹 B 내부
+    ['b1', 'b2'], ['b1', 'b3'], ['b1', 'b5'], ['b2', 'b3'], ['b2', 'b4'], ['b3', 'b4'], ['b3', 'b5'],
+    // 그룹 C 내부
+    ['c1', 'c2'], ['c1', 'c3'], ['c1', 'c4'], ['c3', 'c4'], ['c4', 'c2'], ['c4', 'c5'], ['c2', 'c5'],
+    // 그룹 간 다리 3개
+    ['a4', 'b3'], ['a4', 'c1'], ['b5', 'c2']
+  ];
+  const links = edgedefs.map(([s, t]) => ({ source: pos.get(s), target: pos.get(t) }));
+
+  const svg = d3.select('#chart-force').append('svg').attr('width', W).attr('height', H);
+  const g = svg.append('g');
+
+  g.append('g')
+    .selectAll('line')
+    .data(links)
+    .join('line')
+      .attr('x1', d => d.source.x).attr('y1', d => d.source.y)
+      .attr('x2', d => d.target.x).attr('y2', d => d.target.y)
+      .attr('stroke', LINK_STROKE)
+      .attr('stroke-width', 1);
+
+  g.append('g')
+    .selectAll('circle')
+    .data(nodes)
+    .join('circle')
+      .attr('cx', d => d.x).attr('cy', d => d.y)
+      .attr('r', 6)
+      .attr('fill', NODE_FILL)
+      .attr('stroke', '#fff')
+      .attr('stroke-width', 1);
+}
+</script>
+</body>
+</html>

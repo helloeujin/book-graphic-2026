@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>밀도 그래프 — 데이터 충분성 비교</title>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family:'Pretendard','Noto Sans KR',sans-serif;
+      background:#fff;
+      padding:40px 20px;
+    }
+    .panels { display:flex; gap:24px; align-items:flex-start; }
+    .panel  { display:inline-block; }
+    .panel-label {
+      font-size:13px; font-weight:500; color:#363636;
+      display:flex; align-items:center; gap:8px;
+      padding-bottom:8px; margin-bottom:14px;
+      border-bottom:1px solid #ddd;
+      width:236px;
+    }
+    .badge {
+      font-size:12px; font-weight:700; border-radius:4px;
+      padding:3px 10px; color:#fff; letter-spacing:0.03em; white-space:nowrap;
+    }
+    .badge-worse  { background:#b8351b; }
+    .badge-better { background:#37760a; }
+    .n-count { font-size:12px; color:#999999; font-weight:400; }
+    .source  { font-size:12px; color:#999; margin-top:16px; }
+    #export-btn {
+      display:block; margin-top:16px;
+      padding:8px 16px; font-size:13px;
+      background:#000; color:#fff; border:none; border-radius:4px;
+      cursor:pointer; font-family:'Pretendard','Noto Sans KR',sans-serif;
+    }
+  </style>
+</head>
+<body>
+
+<div class="panels">
+  <div class="panel">
+    <p class="panel-label">
+      <span class="badge badge-worse">Don't</span>
+      데이터가 적을 때
+      <span class="n-count" id="n-dont"></span>
+    </p>
+    <div id="chart-dont"></div>
+  </div>
+  <div class="panel">
+    <p class="panel-label">
+      <span class="badge badge-better">Do</span>
+      데이터가 충분할 때
+      <span class="n-count" id="n-do"></span>
+    </p>
+    <div id="chart-do"></div>
+  </div>
+</div>
+
+<p class="source">*가상 데이터. 커널 밀도 추정(KDE), 대역폭 0.62 고정.</p>
+<button id="export-btn">SVG 다운로드</button>
+
+<script>
+const FONT = "Pretendard,'Noto Sans KR',sans-serif";
+const W = 236, H = 200;
+const M = { t:8, r:8, b:8, l:8 };
+const iW = W - M.l - M.r;
+const PLOT_H = 148;           /* KDE 곡선 영역 높이 = y(0) 위치 */
+const SEP_Y  = PLOT_H;        /* 구분선: 면적 0점과 동일선상 */
+const RUG_Y  = PLOT_H + 16;   /* 스트립 플롯 dot 중심 y */
+
+const ACCENT  = '#6565FF';
+const DONT_COLOR = '#888888';   /* Don't 패널: 신뢰 불가 신호 → 회색 */
+const DO_COLOR   = ACCENT;      /* Do 패널: 권장 → 강조색 */
+
+/* ── KDE 헬퍼 ────────────────────────────────────────────── */
+function kde(kernel, pts, data) {
+  return pts.map(x => [x, d3.mean(data, v => kernel(x - v))]);
+}
+function epanechnikov(h) {
+  return v => Math.abs(v /= h) <= 1 ? 0.75 * (1 - v * v) / h : 0;
+}
+
+/* ── 데이터 ──────────────────────────────────────────────── */
+
+/* n=12: 4개 클러스터로 뭉쳐 인위적인 멀티모달 곡선 유도 */
+const smallData = [0.5, 1.0, 1.4, 2.8, 3.1, 3.4, 4.3, 4.6, 4.9, 5.8, 6.1, 6.3];
+
+/* n=120: 결정적 LCG + Box-Muller, 이중 정규 혼합 */
+function lcg(seed) {
+  let s = seed >>> 0;
+  return () => { s = (Math.imul(1664525, s) + 1013904223) >>> 0; return s / 4294967296; };
+}
+function bm(r) { return Math.sqrt(-2 * Math.log(Math.max(r(), 1e-9))) * Math.cos(2 * Math.PI * r()); }
+
+const rng = lcg(42);
+const largeData = [];
+for (let i = 0; i < 400 && largeData.length < 120; i++) {
+  const v = rng() < 0.55 ? 2.5 + 0.8 * bm(rng) : 4.8 + 0.7 * bm(rng);
+  if (v >= 0.1 && v <= 6.9) largeData.push(v);
+}
+
+/* ── 차트 그리기 ─────────────────────────────────────────── */
+function drawChart(containerId, nLabelId, data, color) {
+  const xd = [0, 7.2], bw = 0.62;
+  const x   = d3.scaleLinear().domain(xd).range([0, iW]);
+  const pts  = d3.range(xd[0], xd[1], 0.03);
+  const dens = kde(epanechnikov(bw), pts, data);
+  const maxD = d3.max(dens, d => d[1]);
+  const y    = d3.scaleLinear().domain([0, maxD * 1.15]).range([PLOT_H, 0]);
+
+  const svg = d3.select(containerId).append('svg')
+    .attr('width', W).attr('height', H);
+  const g = svg.append('g').attr('transform', `translate(${M.l},${M.t})`);
+
+  /* 구분선 — KDE보다 먼저 그려 뒤로 배치 */
+  g.append('line')
+    .attr('x1', 0).attr('x2', iW)
+    .attr('y1', SEP_Y).attr('y2', SEP_Y)
+    .attr('stroke', '#e0e0e0').attr('stroke-width', 1);
+
+  /* KDE 면적 */
+  const areaPath = d3.area()
+    .x(d => x(d[0])).y0(PLOT_H).y1(d => y(d[1]))
+    .curve(d3.curveBasis);
+
+  g.append('path')
+    .datum(dens)
+    .attr('fill', color)
+    .attr('fill-opacity', 0.1)
+    .attr('d', areaPath);
+
+  /* KDE 선 — clipPath로 800ms 드로우 애니메이션 */
+  const clipId = 'clip-' + containerId.replace('#', '');
+  const defs   = svg.append('defs');
+  defs.append('clipPath').attr('id', clipId)
+    .append('rect')
+      .attr('x', M.l).attr('y', 0)
+      .attr('width', 0).attr('height', H)
+      .transition().duration(800).ease(d3.easeCubicInOut)
+      .attr('width', iW);
+
+  const linePath = d3.line()
+    .x(d => x(d[0])).y(d => y(d[1]))
+    .curve(d3.curveBasis);
+
+  g.append('path')
+    .datum(dens)
+    .attr('fill', 'none')
+    .attr('stroke', color)
+    .attr('stroke-width', 1.8)
+    .attr('clip-path', `url(#${clipId})`)
+    .attr('d', linePath);
+
+  /* 스트립 플롯 */
+  const isSmall = data.length < 30;
+  g.selectAll('.rug').data(data).join('circle')
+    .attr('cx', d => x(d))
+    .attr('cy', RUG_Y)
+    .attr('r',  isSmall ? 3 : 1.8)
+    .attr('fill', color)
+    .attr('fill-opacity', isSmall ? 0.65 : 0.32);
+
+  /* n= 레이블 */
+  d3.select(nLabelId).text(`(n = ${data.length})`);
+}
+
+drawChart('#chart-dont', '#n-dont', smallData,  DONT_COLOR);
+drawChart('#chart-do',   '#n-do',   largeData,  DO_COLOR);
+
+/* ── SVG 내보내기 ────────────────────────────────────────── */
+function exportSVG(svgEl, filename) {
+  const clone = svgEl.cloneNode(true);
+  const style = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+  style.textContent = `@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css'); text { font-family:'Pretendard','Noto Sans KR',sans-serif; }`;
+  clone.insertBefore(style, clone.firstChild);
+  const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  bg.setAttribute('width', '100%'); bg.setAttribute('height', '100%');
+  bg.setAttribute('fill', '#ffffff');
+  clone.insertBefore(bg, clone.firstChild);
+  const blob = new Blob([new XMLSerializer().serializeToString(clone)], { type:'image/svg+xml' });
+  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: filename });
+  a.click(); URL.revokeObjectURL(a.href);
+}
+
+document.getElementById('export-btn').addEventListener('click', () => {
+  document.querySelectorAll('svg').forEach((svg, i) =>
+    exportSVG(svg, `kde-${i === 0 ? 'dont' : 'do'}.svg`)
+  );
+});
+</script>
+</body>
+</html>
