@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>숫자 표와 색으로 값을 표현한 표 비교</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 40px 20px;
+    background: #fff;
+    color: #363636;
+    font-family: Pretendard, "Noto Sans KR", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  .container { max-width: 760px; }
+  .compare-wrap {
+    display: flex;
+    gap: 24px;
+  }
+  .panel {
+    flex: 1;
+    min-width: 0;
+  }
+  .panel-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: #363636;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-bottom: 8px;
+    margin-bottom: 14px;
+    border-bottom: 1px solid #ddd;
+  }
+  .chart {
+    display: grid;
+    grid-template-columns: 42px repeat(6, 1fr);
+    gap: 3px;
+    align-items: center;
+  }
+  .time {
+    font-size: 11px;
+    color: #999;
+    text-align: center;
+    padding-bottom: 4px;
+  }
+  .day {
+    font-size: 12px;
+    color: #636363;
+    text-align: right;
+    padding-right: 6px;
+  }
+  .cell {
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    line-height: 1;
+  }
+  .number-cell {
+    color: #636363;
+    background: #f5f5f5;
+  }
+  .heat-cell {
+    font-weight: 500;
+  }
+  .legend {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 7px;
+    margin-top: 13px;
+    font-size: 11px;
+    color: #777;
+  }
+  .gradient {
+    width: 94px;
+    height: 9px;
+    background: linear-gradient(to right, #e8f2fb, #0b66d6);
+  }
+  .note {
+    margin-top: 18px;
+    font-size: 13px;
+    line-height: 17px;
+    color: #777;
+  }
+  @media (max-width: 620px) {
+    .compare-wrap { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="compare-wrap">
+    <section class="panel">
+      <div class="panel-label">숫자로만 표시</div>
+      <div class="chart" id="table"></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-label">값의 크기를 색으로 표현</div>
+      <div class="chart" id="heatmap"></div>
+      <div class="legend">
+        <span>적음</span>
+        <span class="gradient"></span>
+        <span>많음</span>
+      </div>
+    </section>
+  </div>
+
+  <p class="note">요일과 시간대별 카페 방문자 수를 나타낸 예시 데이터입니다. 두 표는 같은 값을 사용합니다.</p>
+</div>
+
+<script>
+const days = ["월", "화", "수", "목", "금"];
+const times = ["8시", "10시", "12시", "14시", "16시", "18시"];
+const data = [
+  [18, 32, 72, 58, 41, 27],
+  [21, 35, 78, 62, 45, 31],
+  [24, 39, 84, 67, 48, 34],
+  [20, 36, 80, 64, 52, 38],
+  [27, 43, 91, 73, 61, 49]
+];
+
+const low = [232, 242, 251];
+const high = [11, 102, 214];
+const values = data.flat();
+const min = Math.min(...values);
+const max = Math.max(...values);
+
+function mixColor(value) {
+  const t = (value - min) / (max - min);
+  const rgb = low.map((c, i) => Math.round(c + (high[i] - c) * t));
+  return `rgb(${rgb.join(",")})`;
+}
+function textColor(value) {
+  const t = (value - min) / (max - min);
+  return t > 0.58 ? "#fff" : "#363636";
+}
+function build(rootId, heat) {
+  const root = document.getElementById(rootId);
+
+  const blank = document.createElement("div");
+  root.appendChild(blank);
+
+  times.forEach(t => {
+    const el = document.createElement("div");
+    el.className = "time";
+    el.textContent = t;
+    root.appendChild(el);
+  });
+
+  data.forEach((row, r) => {
+    const day = document.createElement("div");
+    day.className = "day";
+    day.textContent = days[r];
+    root.appendChild(day);
+
+    row.forEach(value => {
+      const cell = document.createElement("div");
+      cell.className = "cell " + (heat ? "heat-cell" : "number-cell");
+      cell.textContent = value;
+      if (heat) {
+        cell.style.background = mixColor(value);
+        cell.style.color = textColor(value);
+      }
+      root.appendChild(cell);
+    });
+  });
+}
+build("table", false);
+build("heatmap", true);
+</script>
+</body>
+</html>

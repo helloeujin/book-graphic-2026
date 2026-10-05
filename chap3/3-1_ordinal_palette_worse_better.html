@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>순서가 있는 데이터에는 범주형 팔레트를 사용하지 않기</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: Pretendard, "Noto Sans KR", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #fff;
+    padding: 40px 20px;
+    color: #363636;
+  }
+  .container { max-width: 760px; }
+  .compare-wrap { display: flex; gap: 24px; }
+  .panel { flex: 1; min-width: 0; }
+
+  .panel-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: #363636;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-bottom: 8px;
+    margin-bottom: 14px;
+    border-bottom: 1px solid #ddd;
+  }
+  .badge {
+    font-size: 12px;
+    font-weight: 700;
+    border-radius: 4px;
+    padding: 3px 10px;
+    color: #fff;
+    letter-spacing: .03em;
+    flex-shrink: 0;
+  }
+  .worse { background: #b8351b; }
+  .better { background: #37760a; }
+
+  .legend {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 18px;
+  }
+  .legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 13px;
+    color: #636363;
+  }
+  .swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+
+  .chart { width: 100%; }
+  .row {
+    display: grid;
+    grid-template-columns: 46px 1fr;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 17px;
+  }
+  .store {
+    font-size: 13px;
+    color: #636363;
+  }
+  .bar {
+    display: flex;
+    height: 30px;
+    width: 100%;
+  }
+  .seg { height: 100%; }
+
+  .axis {
+    margin-left: 54px;
+    position: relative;
+    height: 25px;
+    border-top: 1px solid rgba(170,170,170,.45);
+  }
+  .tick {
+    position: absolute;
+    top: 6px;
+    transform: translateX(-50%);
+    font-size: 12px;
+    color: #999;
+  }
+  .tick:first-child { transform: none; }
+  .tick:last-child { transform: translateX(-100%); }
+
+  .note {
+    font-size: 13px;
+    line-height: 17px;
+    color: #777;
+    margin-top: 18px;
+  }
+
+  @media (max-width: 620px) {
+    .compare-wrap { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="compare-wrap">
+
+    <section class="panel">
+      <div class="panel-label">
+        <span class="badge worse">Worse</span>
+        <span>서로 관계없는 색 사용</span>
+      </div>
+
+      <div class="legend" id="legend-worse"></div>
+      <div class="chart" id="chart-worse"></div>
+      <div class="axis">
+        <span class="tick" style="left:0%">0%</span>
+        <span class="tick" style="left:50%">50%</span>
+        <span class="tick" style="left:100%">100%</span>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-label">
+        <span class="badge better">Better</span>
+        <span>순서가 드러나는 색 사용</span>
+      </div>
+
+      <div class="legend" id="legend-better"></div>
+      <div class="chart" id="chart-better"></div>
+      <div class="axis">
+        <span class="tick" style="left:0%">0%</span>
+        <span class="tick" style="left:50%">50%</span>
+        <span class="tick" style="left:100%">100%</span>
+      </div>
+    </section>
+
+  </div>
+
+  <p class="note">세 매장의 의류 사이즈별 판매 비율을 100% 누적 막대그래프로 표현한 예시. 두 차트는 같은 데이터를 사용하고 색만 다르게 표현했습니다.</p>
+</div>
+
+<script>
+const sizes = ["XS","S","M","L","XL"];
+const stores = [
+  {name:"매장 A", values:[12, 22, 31, 23, 12]},
+  {name:"매장 B", values:[8, 18, 30, 28, 16]},
+  {name:"매장 C", values:[15, 25, 29, 20, 11]}
+];
+
+// Book palette: unrelated categorical hues vs. one ordered blue scale.
+const palettes = {
+  worse: ["#cc2b0c","#0b66d6","#eaba04","#824cd5","#3b8601"],
+  better:["#dcecff","#acd2f4","#70afe4","#347fbd","#174f80"]
+};
+
+function drawLegend(id, colors) {
+  const root = document.getElementById(id);
+  sizes.forEach((size, i) => {
+    const item = document.createElement("span");
+    item.className = "legend-item";
+    item.innerHTML = `<i class="swatch" style="background:${colors[i]}"></i>${size}`;
+    root.appendChild(item);
+  });
+}
+
+function drawChart(id, colors) {
+  const root = document.getElementById(id);
+  stores.forEach(store => {
+    const row = document.createElement("div");
+    row.className = "row";
+
+    const label = document.createElement("div");
+    label.className = "store";
+    label.textContent = store.name;
+
+    const bar = document.createElement("div");
+    bar.className = "bar";
+    bar.setAttribute("aria-label",
+      `${store.name}: ` + sizes.map((s,i)=>`${s} ${store.values[i]}%`).join(", ")
+    );
+
+    store.values.forEach((v,i) => {
+      const seg = document.createElement("div");
+      seg.className = "seg";
+      seg.style.width = v + "%";
+      seg.style.background = colors[i];
+      seg.title = `${sizes[i]} ${v}%`;
+      bar.appendChild(seg);
+    });
+
+    row.append(label, bar);
+    root.appendChild(row);
+  });
+}
+
+drawLegend("legend-worse", palettes.worse);
+drawLegend("legend-better", palettes.better);
+drawChart("chart-worse", palettes.worse);
+drawChart("chart-better", palettes.better);
+</script>
+</body>
+</html>

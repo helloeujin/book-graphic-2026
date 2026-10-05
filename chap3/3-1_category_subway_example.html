@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>3-1 카테고리 보여주기 — 색으로 노선 구분하기</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: #fff;
+    color: #222;
+    font-family: Pretendard, "Noto Sans KR", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 40px 20px 44px; }
+  .eyebrow { font-size: 12px; font-weight: 700; letter-spacing: .04em; color: #777; margin-bottom: 9px; }
+  h1 { margin: 0; font-size: 22px; line-height: 1.35; letter-spacing: -.02em; }
+  .dek { margin: 8px 0 28px; max-width: 720px; color: #666; font-size: 14px; line-height: 1.6; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .panel { border: 1px solid #e5e5e5; border-radius: 8px; padding: 18px 18px 15px; background: #fff; }
+  .panel-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .badge { font-size: 11px; font-weight: 700; padding: 3px 7px; border-radius: 4px; background: #f1f1f1; color: #666; }
+  .panel-title { font-size: 14px; font-weight: 700; }
+  .panel-desc { min-height: 40px; margin: 5px 0 8px; font-size: 12px; line-height: 1.55; color: #777; }
+  svg { width: 100%; height: auto; display: block; }
+  .station { fill: white; stroke-width: 3; }
+  .station.interchange { r: 7; }
+  .label { font-size: 11px; fill: #555; font-weight: 600; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 7px; font-size: 11px; color: #666; }
+  .legend-item { display: flex; align-items: center; gap: 5px; }
+  .swatch { width: 18px; height: 4px; border-radius: 2px; background: var(--c); }
+  .takeaway { margin-top: 20px; padding-top: 15px; border-top: 1px solid #e8e8e8; display: flex; gap: 10px; align-items: baseline; }
+  .takeaway strong { font-size: 12px; white-space: nowrap; }
+  .takeaway span { font-size: 13px; line-height: 1.55; color: #555; }
+  @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } .panel-desc { min-height: 0; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">3-1. 카테고리 보여주기</div>
+  <h1>색이 있으면 서로 다른 노선을 쉽게 구분할 수 있습니다</h1>
+  <p class="dek">같은 노선도라도 모든 선이 같은 색이면 교차 지점에서 각 노선을 따라가기 어렵습니다. 서로 다른 색을 사용하면 같은 노선에 속한 구간을 하나의 그룹으로 인식하기 쉬워집니다.</p>
+
+  <div class="grid">
+    <section class="panel">
+      <div class="panel-head"><span class="badge">색이 없다면</span><span class="panel-title">모든 노선이 같은 색</span></div>
+      <p class="panel-desc">노선이 교차할수록 어느 선이 같은 노선인지 계속 확인해야 합니다.</p>
+      <svg viewBox="0 0 440 300" role="img" aria-label="세 노선이 모두 회색으로 표시된 가상의 지하철 노선도">
+        <!-- route A -->
+        <path d="M40 78 H145 Q165 78 165 98 V215 Q165 235 185 235 H400" fill="none" stroke="#9b9b9b" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+        <!-- route B -->
+        <path d="M55 245 L125 175 Q138 162 155 162 H292 Q310 162 322 148 L390 72" fill="none" stroke="#9b9b9b" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+        <!-- route C -->
+        <path d="M58 120 H245 Q263 120 276 133 L345 202 Q358 215 400 215" fill="none" stroke="#9b9b9b" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+        <g stroke="#9b9b9b">
+          <circle class="station" cx="82" cy="78" r="5"/><circle class="station" cx="165" cy="120" r="5"/><circle class="station" cx="165" cy="235" r="5"/><circle class="station" cx="270" cy="235" r="5"/><circle class="station" cx="365" cy="235" r="5"/>
+          <circle class="station" cx="91" cy="209" r="5"/><circle class="station" cx="155" cy="162" r="7"/><circle class="station" cx="250" cy="162" r="5"/><circle class="station" cx="322" cy="148" r="5"/><circle class="station" cx="365" cy="100" r="5"/>
+          <circle class="station" cx="102" cy="120" r="5"/><circle class="station" cx="210" cy="120" r="5"/><circle class="station" cx="276" cy="133" r="5"/><circle class="station" cx="345" cy="202" r="5"/><circle class="station" cx="385" cy="215" r="5"/>
+        </g>
+        <text class="label" x="38" y="61">A선</text><text class="label" x="42" y="269">B선</text><text class="label" x="40" y="105">C선</text>
+      </svg>
+      <div class="legend"><span>세 노선의 형태와 위치는 오른쪽과 동일합니다.</span></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><span class="badge">색으로 구분하면</span><span class="panel-title">노선마다 다른 색</span></div>
+      <p class="panel-desc">색을 따라가면 같은 노선에 속한 구간을 빠르게 파악할 수 있습니다.</p>
+      <svg viewBox="0 0 440 300" role="img" aria-label="세 노선이 파랑 주황 청록으로 구분된 가상의 지하철 노선도">
+        <path d="M40 78 H145 Q165 78 165 98 V215 Q165 235 185 235 H400" fill="none" stroke="#3478c5" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M55 245 L125 175 Q138 162 155 162 H292 Q310 162 322 148 L390 72" fill="none" stroke="#e07a35" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M58 120 H245 Q263 120 276 133 L345 202 Q358 215 400 215" fill="none" stroke="#2b9a8b" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+        <g>
+          <g stroke="#3478c5"><circle class="station" cx="82" cy="78" r="5"/><circle class="station" cx="165" cy="120" r="5"/><circle class="station" cx="165" cy="235" r="5"/><circle class="station" cx="270" cy="235" r="5"/><circle class="station" cx="365" cy="235" r="5"/></g>
+          <g stroke="#e07a35"><circle class="station" cx="91" cy="209" r="5"/><circle class="station" cx="155" cy="162" r="7"/><circle class="station" cx="250" cy="162" r="5"/><circle class="station" cx="322" cy="148" r="5"/><circle class="station" cx="365" cy="100" r="5"/></g>
+          <g stroke="#2b9a8b"><circle class="station" cx="102" cy="120" r="5"/><circle class="station" cx="210" cy="120" r="5"/><circle class="station" cx="276" cy="133" r="5"/><circle class="station" cx="345" cy="202" r="5"/><circle class="station" cx="385" cy="215" r="5"/></g>
+        </g>
+        <text class="label" x="38" y="61" fill="#3478c5">A선</text><text class="label" x="42" y="269" fill="#e07a35">B선</text><text class="label" x="40" y="105" fill="#2b9a8b">C선</text>
+      </svg>
+      <div class="legend">
+        <span class="legend-item"><i class="swatch" style="--c:#3478c5"></i>A선</span>
+        <span class="legend-item"><i class="swatch" style="--c:#e07a35"></i>B선</span>
+        <span class="legend-item"><i class="swatch" style="--c:#2b9a8b"></i>C선</span>
+      </div>
+    </section>
+  </div>
+
+  <div class="takeaway"><strong>핵심</strong><span>서로 순서가 없는 카테고리는 서로 다른 색상을 사용해 구분할 수 있습니다.</span></div>
+</div>
+</body>
+</html>

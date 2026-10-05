@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>카테고리가 많을 때 색의 부담 줄이기</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family:'Pretendard','Noto Sans KR',sans-serif;
+  background:#fff;
+  padding:40px 20px;
+}
+.container { width: 1016px; }
+.panels {
+  display:flex;
+  gap:24px;
+  align-items:flex-start;
+}
+.panel { width:236px; flex:0 0 236px; }
+.panel-label {
+  font-size:13px;
+  font-weight:500;
+  color:#363636;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding-bottom:8px;
+  margin-bottom:14px;
+  border-bottom:1px solid #ddd;
+}
+.badge {
+  font-size:12px;
+  font-weight:700;
+  border-radius:4px;
+  padding:3px 10px;
+  color:#fff;
+  letter-spacing:.03em;
+  white-space:nowrap;
+}
+.badge-worse { background:#b8351b; }
+.badge-method { background:#636363; }
+
+.legend {
+  display:flex;
+  flex-wrap:wrap;
+  gap:5px 10px;
+  min-height:44px;
+  margin-bottom:8px;
+}
+.legend-item {
+  display:flex;
+  align-items:center;
+  gap:4px;
+  font-size:11px;
+  line-height:13px;
+  color:#636363;
+}
+.legend-dot {
+  width:8px;
+  height:8px;
+  border-radius:50%;
+  flex:0 0 auto;
+}
+.legend-spacer { height:52px; }
+.note {
+  margin-top:14px;
+  font-size:13px;
+  line-height:17px;
+  color:#777;
+}
+.small-title {
+  font-size:11px;
+  font-weight:600;
+  fill:#636363;
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="panels">
+
+    <div class="panel">
+      <p class="panel-label">
+        <span class="badge badge-worse">Worse</span>
+        12개 색 + 범례
+      </p>
+      <div class="legend" id="legend-worse"></div>
+      <div id="chart-worse"></div>
+    </div>
+
+    <div class="panel">
+      <p class="panel-label">
+        <span class="badge badge-method">묶기</span>
+        주요 항목만 구분
+      </p>
+      <div class="legend" id="legend-group"></div>
+      <div id="chart-group"></div>
+    </div>
+
+    <div class="panel">
+      <p class="panel-label">
+        <span class="badge badge-method">직접 레이블</span>
+        범례 대신 이름 표시
+      </p>
+      <div class="legend-spacer"></div>
+      <div id="chart-direct"></div>
+    </div>
+
+    <div class="panel">
+      <p class="panel-label">
+        <span class="badge badge-method">나누기</span>
+        작은 차트로 분리
+      </p>
+      <div class="legend-spacer"></div>
+      <div id="chart-small"></div>
+    </div>
+
+  </div>
+  <p class="note">※ 세 방법은 순서가 아니라 상황에 따라 선택하거나 함께 사용할 수 있는 방법입니다.</p>
+</div>
+
+<script>
+const FONT = "Pretendard,'Noto Sans KR',sans-serif";
+const names = ['A','B','C','D','E','F','G','H','I','J','K','L'];
+const months = ['1월','2월','3월','4월','5월'];
+
+const series = [
+ [22,25,24,30,32], [34,32,36,35,38], [8,10,14,18,22],
+ [28,27,29,31,30], [18,20,19,23,25], [39,37,35,34,32],
+ [12,15,13,16,18], [26,24,25,22,24], [31,30,28,29,27],
+ [16,17,20,19,21], [36,34,33,31,29], [10,12,11,14,15]
+];
+
+const manyColors = [
+ '#0b66d6','#cc2b0c','#3b8601','#824cd5','#c95c03','#ca286d',
+ '#029e94','#eaba04','#0278c7','#6a6a6a','#9b5a2e','#667c2c'
+];
+const keyColors = ['#0b66d6','#cc2b0c','#3b8601'];
+const gray = '#c6c6c6';
+const darkGray = '#838383';
+
+const W=236, H=180;
+const M={top:6,right:10,bottom:30,left:34};
+const iW=W-M.left-M.right, iH=H-M.top-M.bottom;
+const yTicks=[0,20,40];
+
+function legend(selector, items) {
+ const root=d3.select(selector);
+ items.forEach(d=>{
+   const item=root.append('span').attr('class','legend-item');
+   item.append('span').attr('class','legend-dot').style('background',d.color);
+   item.append('span').text(d.name);
+ });
+}
+
+function axes(g,x,y,width,height) {
+ g.selectAll('.grid').data(yTicks).join('line')
+   .attr('x1',0).attr('x2',width)
+   .attr('y1',d=>y(d)).attr('y2',d=>y(d))
+   .style('stroke',d=>d===0?'#363636':'#aaaaaa')
+   .style('stroke-dasharray',d=>d===0?'0':'2')
+   .style('stroke-opacity',.4);
+
+ g.append('g')
+   .call(d3.axisLeft(y).tickValues(yTicks).tickSize(0).tickPadding(6))
+   .call(a=>a.select('.domain').remove())
+   .selectAll('text')
+   .style('font-family',FONT).style('font-size','12px').style('fill','#999');
+
+ g.append('g').attr('transform',`translate(0,${height})`)
+   .call(d3.axisBottom(x).tickValues([0,4]).tickFormat((d,i)=>['1월','5월'][i]).tickSize(4).tickPadding(6))
+   .call(a=>a.select('.domain').remove())
+   .call(a=>a.selectAll('.tick line').style('stroke','#999'))
+   .selectAll('text')
+   .style('font-family',FONT).style('font-size','12px').style('fill','#999');
+}
+
+function baseChart(selector) {
+ const svg=d3.select(selector).append('svg').attr('width',W).attr('height',H).style('overflow','visible');
+ const g=svg.append('g').attr('transform',`translate(${M.left},${M.top})`);
+ const x=d3.scaleLinear().domain([0,4]).range([0,iW]);
+ const y=d3.scaleLinear().domain([0,45]).range([iH,0]);
+ axes(g,x,y,iW,iH);
+ return {svg,g,x,y};
+}
+
+function addLine(g,x,y,vals,color,width=1.6,opacity=1) {
+ const line=d3.line().x((d,i)=>x(i)).y(d=>y(d)).curve(d3.curveMonotoneX);
+ g.append('path').datum(vals)
+   .attr('fill','none').attr('stroke',color).attr('stroke-width',width)
+   .attr('stroke-opacity',opacity).attr('d',line);
+}
+
+// 1. Worse
+legend('#legend-worse', names.map((n,i)=>({name:n,color:manyColors[i]})));
+{
+ const {g,x,y}=baseChart('#chart-worse');
+ series.forEach((s,i)=>addLine(g,x,y,s,manyColors[i],1.6,.95));
+}
+
+// 2. Group: top 3 named, rest visually grouped as "기타"
+legend('#legend-group', [
+ {name:'A',color:keyColors[0]}, {name:'B',color:keyColors[1]},
+ {name:'C',color:keyColors[2]}, {name:'기타',color:gray}
+]);
+{
+ const {g,x,y}=baseChart('#chart-group');
+ series.slice(3).forEach(s=>addLine(g,x,y,s,gray,1.2,.65));
+ series.slice(0,3).forEach((s,i)=>addLine(g,x,y,s,keyColors[i],2,1));
+}
+
+// 3. Direct labels: same reduced color burden, no legend lookup
+{
+ const {g,x,y}=baseChart('#chart-direct');
+ series.slice(3).forEach(s=>addLine(g,x,y,s,gray,1.1,.45));
+ series.slice(0,3).forEach((s,i)=>{
+   addLine(g,x,y,s,keyColors[i],2,1);
+   g.append('text')
+    .attr('x',iW+5).attr('y',y(s[4])).attr('dy','.32em')
+    .style('font-family',FONT).style('font-size','11px').style('font-weight',600)
+    .style('fill',keyColors[i]).text(names[i]);
+ });
+}
+
+// 4. Small multiples: all 12 series, but spatial separation does the identifying
+{
+ const svg=d3.select('#chart-small').append('svg').attr('width',W).attr('height',H);
+ const cols=3, rows=4, gapX=8, gapY=10;
+ const cellW=(W-gapX*(cols-1))/cols;
+ const cellH=(H-gapY*(rows-1))/rows;
+ const x=d3.scaleLinear().domain([0,4]).range([5,cellW-4]);
+ const y=d3.scaleLinear().domain([0,45]).range([cellH-5,10]);
+
+ series.forEach((s,i)=>{
+   const col=i%cols, row=Math.floor(i/cols);
+   const g=svg.append('g').attr('transform',`translate(${col*(cellW+gapX)},${row*(cellH+gapY)})`);
+   g.append('text').attr('x',3).attr('y',8)
+     .attr('class','small-title').style('font-family',FONT).text(names[i]);
+   g.append('line').attr('x1',3).attr('x2',cellW-3)
+     .attr('y1',cellH-4).attr('y2',cellH-4)
+     .attr('stroke','#aaaaaa').attr('stroke-opacity',.35);
+   const line=d3.line().x((d,j)=>x(j)).y(d=>y(d)).curve(d3.curveMonotoneX);
+   g.append('path').datum(s).attr('d',line).attr('fill','none')
+     .attr('stroke',darkGray).attr('stroke-width',1.5);
+ });
+}
+</script>
+</body>
+</html>

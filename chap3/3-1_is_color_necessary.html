@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>색이 꼭 필요한지 먼저 생각하기</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Pretendard', 'Noto Sans KR', sans-serif;
+    background: #fff;
+    padding: 40px 20px;
+  }
+  .panels {
+    display: flex;
+    gap: 24px;
+    align-items: flex-start;
+  }
+  .panel { display: inline-block; width: 236px; }
+
+  .panel-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: #363636;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-bottom: 8px;
+    margin-bottom: 14px;
+    border-bottom: 1px solid #ddd;
+  }
+  .badge {
+    font-size: 12px;
+    font-weight: 700;
+    border-radius: 4px;
+    padding: 3px 10px;
+    color: #fff;
+    letter-spacing: .03em;
+    white-space: nowrap;
+  }
+  .badge-worse { background: #b8351b; }
+  .badge-better { background: #37760a; }
+</style>
+</head>
+<body>
+
+<div class="panels">
+  <div class="panel">
+    <p class="panel-label">
+      <span class="badge badge-worse">Worse</span>
+      지역마다 다른 색 사용
+    </p>
+    <div id="chart-worse"></div>
+  </div>
+
+  <div class="panel">
+    <p class="panel-label">
+      <span class="badge badge-better">Better</span>
+      하나의 중립적인 색 사용
+    </p>
+    <div id="chart-better"></div>
+  </div>
+</div>
+
+<script>
+const data = [
+  { city: '서울', value: 92 },
+  { city: '부산', value: 76 },
+  { city: '인천', value: 63 },
+  { city: '대구', value: 51 },
+  { city: '광주', value: 38 }
+];
+
+const categorical = ['#0b66d6','#c95c03','#3b8601','#824cd5','#cc2b0c'];
+const neutral = '#838383';
+
+const W = 236, H = 200;
+const M = { top: 6, right: 8, bottom: 24, left: 38 };
+const iW = W - M.left - M.right;
+const iH = H - M.top - M.bottom;
+const FONT = "Pretendard,'Noto Sans KR',sans-serif";
+
+function drawChart(selector, useManyColors) {
+  const svg = d3.select(selector).append('svg')
+    .attr('width', W)
+    .attr('height', H);
+
+  const g = svg.append('g')
+    .attr('transform', `translate(${M.left},${M.top})`);
+
+  const x = d3.scaleLinear()
+    .domain([0, 100])
+    .range([0, iW]);
+
+  const y = d3.scaleBand()
+    .domain(data.map(d => d.city))
+    .range([0, iH])
+    .padding(0.32);
+
+  // 지역명은 막대 가까이에 직접 표시
+  g.append('g')
+    .call(d3.axisLeft(y).tickSize(0).tickPadding(8))
+    .call(a => a.select('.domain').remove())
+    .selectAll('text')
+      .style('font-family', FONT)
+      .style('font-size', '13px')
+      .style('font-weight', 400)
+      .style('fill', '#636363');
+
+  const bars = g.selectAll('.bar')
+    .data(data)
+    .join('rect')
+      .attr('class', 'bar')
+      .attr('x', 0)
+      .attr('y', d => y(d.city))
+      .attr('height', y.bandwidth())
+      .attr('width', 0)
+      .attr('fill', (d, i) => useManyColors ? categorical[i] : neutral);
+
+  bars.transition()
+    .duration(800)
+    .ease(d3.easeCubicInOut)
+    .attr('width', d => x(d.value));
+
+  // 값 레이블
+  g.selectAll('.value')
+    .data(data)
+    .join('text')
+      .attr('class', 'value')
+      .attr('x', d => x(d.value) + 5)
+      .attr('y', d => y(d.city) + y.bandwidth()/2)
+      .attr('dy', '0.34em')
+      .style('font-family', FONT)
+      .style('font-size', '12px')
+      .style('fill', '#777')
+      .text(d => d.value);
+}
+
+drawChart('#chart-worse', true);
+drawChart('#chart-better', false);
+</script>
+</body>
+</html>

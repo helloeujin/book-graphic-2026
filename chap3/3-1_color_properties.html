@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>색의 세 가지 속성</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 40px 20px;
+    background: #fff;
+    color: #222;
+    font-family: Pretendard, "Noto Sans KR", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  .wrap { max-width: 1040px; margin: 0 auto; }
+  .eyebrow { font-size: 13px; font-weight: 700; color: #777; margin-bottom: 8px; }
+  h1 { font-size: 25px; line-height: 1.25; margin: 0 0 8px; letter-spacing: -0.02em; }
+  .intro { margin: 0 0 28px; color: #666; font-size: 14px; line-height: 1.6; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .card { border: 1px solid #e3e3e3; border-radius: 10px; padding: 20px; min-height: 300px; }
+  .badge { display: inline-block; font-size: 11px; font-weight: 700; background: #f3f3f3; border-radius: 4px; padding: 4px 7px; margin-bottom: 12px; color: #666; }
+  h2 { font-size: 18px; margin: 0 0 7px; letter-spacing: -0.01em; }
+  .definition { font-size: 13px; line-height: 1.55; color: #666; margin: 0 0 24px; min-height: 42px; }
+  .swatches { height: 76px; display: flex; align-items: center; justify-content: center; gap: 10px; }
+  .dot { width: 46px; height: 46px; border-radius: 50%; }
+  .scale { height: 76px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .scale .dot { width: 42px; height: 42px; }
+  .axis { display: flex; justify-content: space-between; margin: 2px 2px 24px; font-size: 11px; color: #777; }
+  .role { border-top: 1px solid #eee; padding-top: 16px; font-size: 13px; line-height: 1.55; }
+  .role strong { display: block; font-size: 12px; color: #777; margin-bottom: 5px; }
+  .arrow { color: #999; margin-right: 4px; }
+  .h1 { background:#3478d4; } .h2 { background:#e98432; } .h3 { background:#7b58c9; } .h4 { background:#2b9a8d; }
+  .l1 { background:#dceafb; } .l2 { background:#a8cdf3; } .l3 { background:#6aa6e2; } .l4 { background:#3478b9; } .l5 { background:#164f82; }
+  .s1 { background:#b7a2a2; } .s2 { background:#c98e8e; } .s3 { background:#dc7272; } .s4 { background:#ed5555; } .s5 { background:#f23838; }
+  .labels { display:flex; justify-content:center; gap:10px; margin-top:-5px; margin-bottom:24px; }
+  .labels span { width:46px; text-align:center; font-size:11px; color:#666; }
+  @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } .definition { min-height: auto; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">COLOR BASICS</div>
+  <h1>색의 세 가지 속성</h1>
+  <p class="intro">색상, 명도, 채도는 데이터를 구분하고 값을 표현하며 시선을 조절하는 데 서로 다른 역할을 합니다.</p>
+
+  <div class="grid">
+    <section class="card">
+      <div class="badge">HUE</div>
+      <h2>색상</h2>
+      <p class="definition">빨강, 파랑, 초록처럼 서로 다른 색의 종류</p>
+      <div class="swatches">
+        <span class="dot h1"></span><span class="dot h2"></span><span class="dot h3"></span><span class="dot h4"></span>
+      </div>
+      <div class="labels"><span>파랑</span><span>주황</span><span>보라</span><span>청록</span></div>
+      <div class="role"><strong>주로 이런 경우에 사용</strong><span class="arrow">→</span>서로 다른 종류(카테고리)를 구분할 때</div>
+    </section>
+
+    <section class="card">
+      <div class="badge">LIGHTNESS</div>
+      <h2>명도</h2>
+      <p class="definition">색이 얼마나 밝거나 어두운지</p>
+      <div class="scale">
+        <span class="dot l1"></span><span class="dot l2"></span><span class="dot l3"></span><span class="dot l4"></span><span class="dot l5"></span>
+      </div>
+      <div class="axis"><span>밝음</span><span>어두움</span></div>
+      <div class="role"><strong>주로 이런 경우에 사용</strong><span class="arrow">→</span>값의 크기나 순서를 표현할 때</div>
+    </section>
+
+    <section class="card">
+      <div class="badge">SATURATION</div>
+      <h2>채도</h2>
+      <p class="definition">색이 얼마나 선명하거나 탁하게 보이는지</p>
+      <div class="scale">
+        <span class="dot s1"></span><span class="dot s2"></span><span class="dot s3"></span><span class="dot s4"></span><span class="dot s5"></span>
+      </div>
+      <div class="axis"><span>탁함</span><span>선명함</span></div>
+      <div class="role"><strong>주로 이런 경우에 사용</strong><span class="arrow">→</span>특정 데이터를 더 눈에 띄게 하거나 뒤로 물러나게 할 때</div>
+    </section>
+  </div>
+</div>
+</body>
+</html>

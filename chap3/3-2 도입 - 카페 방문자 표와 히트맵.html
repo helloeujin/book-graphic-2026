@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>3-2 데이터의 값을 나타내기 - 도입</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7.8.5/dist/d3.min.js"></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); --bg: #fff; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #fff; } }
+  :root[data-theme="dark"] { --bg: #fff; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', 'Noto Sans KR', sans-serif; background: var(--bg); padding: 40px 20px; }
+  .container { max-width: 620px; margin: 0; }
+  .compare-wrap { display: flex; gap: 24px; flex-wrap: wrap; }
+  .panel { flex: 1 1 236px; }
+  .panel-header { font-size: 13px; font-weight: 500; color: #363636; display: flex; align-items: center; gap: 8px;
+    padding-bottom: 8px; margin-bottom: 14px; border-bottom: 1px solid #ddd; }
+  .badge { font-size: 12px; font-weight: 700; border-radius: 4px; padding: 3px 10px; color: #ffffff;
+    letter-spacing: 0.03em; flex-shrink: 0; }
+  .badge-better { background: #37760a; }
+  .badge-worse  { background: #b8351b; }
+  .legend { display: flex; gap: 14px; margin-bottom: 6px; }
+  .legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; line-height: 13px; color: #363636; }
+  .legend-item i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .result { font-size: 13px; line-height: 17px; font-weight: 400; color: #363636; margin-top: 6px; }
+  .result strong { font-weight: 700; }
+  .source { font-size: 13px; line-height: 17px; color: #777777; margin-top: 18px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="compare-wrap">
+    <div class="panel">
+      <div class="panel-header"><span>숫자만 표시한 표</span></div>
+      <div id="t-plain"></div>
+      <p class="result"><strong>결과:</strong> 가장 붐비는 때를 찾으려면 42개 칸의 숫자를 하나씩 비교해야 합니다.</p>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span>값이 클수록 진하게 표시한 표</span></div>
+      <div id="t-heat"></div>
+      <p class="result"><strong>결과:</strong> 평일 아침과 주말 오후처럼 방문자가 많은 시간대가 먼저 눈에 들어옵니다.</p>
+    </div>
+  </div>
+  <p class="source">요일·시간대별 카페 방문자 수(명), 예시 데이터</p>
+</div>
+<script>
+const FONT = "'Pretendard','Noto Sans KR',sans-serif";
+const DAYS = ['월', '화', '수', '목', '금', '토', '일'];
+const SLOTS = ['8시', '10시', '12시', '14시', '16시', '18시'];
+// 예시 데이터: 각 시간대(2시간 단위) 방문자 수
+const DATA = [
+  [78, 34, 61, 28, 22, 31],
+  [82, 31, 58, 25, 24, 29],
+  [76, 36, 63, 27, 21, 33],
+  [80, 33, 60, 30, 26, 38],
+  [74, 38, 66, 35, 41, 57],
+  [18, 45, 72, 88, 84, 52],
+  [12, 39, 69, 91, 79, 40]
+];
+
+const W = 298, H = 236;
+const margin = { top: 22, right: 0, bottom: 0, left: 24 };
+const iW = W - margin.left - margin.right, iH = H - margin.top - margin.bottom;
+const x = d3.scaleBand().domain(SLOTS).range([0, iW]).padding(0);
+const y = d3.scaleBand().domain(DAYS).range([0, iH]).padding(0);
+const cells = DAYS.flatMap((d, r) => SLOTS.map((s, c) => ({ d, s, v: DATA[r][c] })));
+
+// 순차형: blue.base 색상을 유지하고 명도만 변화 (Lab 보간)
+const flat = DATA.flat();
+const STOPS = ['#E8F0FC', '#C3D9F9', '#89B3F0', '#4B88E2', '#1C60BC', '#114081'];
+const lo = d3.min(flat), hi = d3.max(flat);
+const color = d3.scaleLinear()
+  .domain(STOPS.map((_, i) => lo + (hi - lo) * i / (STOPS.length - 1)))
+  .range(STOPS).interpolate(d3.interpolateLab);
+const textOn = v => d3.lab(color(v)).l < 62 ? '#ffffff' : '#363636';
+
+function drawTable(sel, heat) {
+  const svg = d3.select(sel).append('svg').attr('width', W).attr('height', H);
+  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+  g.selectAll('rect').data(cells).join('rect')
+    .attr('x', d => x(d.s)).attr('y', d => y(d.d))
+    .attr('width', x.bandwidth()).attr('height', y.bandwidth())
+    .attr('fill', d => heat ? color(d.v) : '#ffffff')
+    .attr('stroke', heat ? '#ffffff' : '#e3e3e3').attr('stroke-width', 1);
+
+  g.selectAll('text.v').data(cells).join('text')
+    .attr('x', d => x(d.s) + x.bandwidth() / 2).attr('y', d => y(d.d) + y.bandwidth() / 2)
+    .attr('dy', '0.34em').attr('text-anchor', 'middle')
+    .style('font-size', '12px').style('font-family', FONT)
+    .style('fill', d => heat ? textOn(d.v) : '#363636')
+    .text(d => d.v);
+
+  g.selectAll('text.col').data(SLOTS).join('text')
+    .attr('x', d => x(d) + x.bandwidth() / 2).attr('y', -8).attr('text-anchor', 'middle')
+    .style('font-size', '12px').style('fill', '#999999').style('font-family', FONT).text(d => d);
+
+  g.selectAll('text.row').data(DAYS).join('text')
+    .attr('x', -10).attr('y', d => y(d) + y.bandwidth() / 2).attr('dy', '0.34em').attr('text-anchor', 'end')
+    .style('font-size', '12px').style('fill', '#999999').style('font-family', FONT).text(d => d);
+}
+drawTable('#t-plain', false);
+drawTable('#t-heat', true);
+</script>
+</body>
+</html>

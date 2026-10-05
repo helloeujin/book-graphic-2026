@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>이미 의미를 가지고 있는 색 - 캔들 차트</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7.8.5/dist/d3.min.js"></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); --bg: #fff; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #fff; } }
+  :root[data-theme="dark"] { --bg: #fff; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', 'Noto Sans KR', sans-serif; background: var(--bg); padding: 40px 20px; }
+  .container { max-width: 620px; margin: 0; }
+  .compare-wrap { display: flex; gap: 24px; flex-wrap: wrap; }
+  .panel { flex: 1 1 236px; }
+  .panel-header { font-size: 13px; font-weight: 500; color: #363636; display: flex; align-items: center; gap: 8px;
+    padding-bottom: 8px; margin-bottom: 14px; border-bottom: 1px solid #ddd; }
+  .badge { font-size: 12px; font-weight: 700; border-radius: 4px; padding: 3px 10px; color: #ffffff;
+    letter-spacing: 0.03em; flex-shrink: 0; }
+  .badge-better { background: #37760a; }
+  .badge-worse  { background: #b8351b; }
+  .legend { display: flex; gap: 14px; margin-bottom: 6px; }
+  .legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; line-height: 13px; color: #363636; }
+  .legend-item i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .result { font-size: 13px; line-height: 17px; font-weight: 400; color: #363636; margin-top: 6px; }
+  .result strong { font-weight: 700; }
+  .source { font-size: 13px; line-height: 17px; color: #777777; margin-top: 18px; }
+</style>
+<style>
+  .panel-header { justify-content: space-between; }
+  .panel-header .conv { font-size: 12px; font-weight: 400; color: #777777; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="compare-wrap">
+    <div class="panel">
+      <div class="panel-header"><span>한국</span><span class="conv">빨강 = 상승 · 파랑 = 하락</span></div>
+      <div id="chart-kr"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span>미국</span><span class="conv">초록 = 상승 · 빨강 = 하락</span></div>
+      <div id="chart-us"></div>
+    </div>
+  </div>
+  <p class="result" style="margin-top:6px"><strong>결과:</strong> 같은 시세인데 왼쪽에서는 빨간 촛대가 오른 날, 오른쪽에서는 빨간 촛대가 내린 날입니다.</p>
+  <p class="source">가상 종목 20거래일 시세, 예시 데이터. X축은 거래일 순서</p>
+</div>
+<script>
+const FONT = "'Pretendard','Noto Sans KR',sans-serif";
+const W = 298, H = 210;
+const margin = { top: 14, right: 6, bottom: 30, left: 64 };
+const iW = W - margin.left - margin.right, iH = H - margin.top - margin.bottom;
+
+// 예시 데이터: [시가, 고가, 저가, 종가] (원)
+const OHLC = [[50000,50200,49100,49600],[49600,50000,48250,48550],[48550,48950,47400,47500],[47500,47650,47250,47400],
+  [47400,48000,47150,47300],[47300,47800,46050,46700],[46700,47300,46000,46950],[46950,47550,45650,45900],
+  [45900,46050,44800,45100],[45100,46100,44650,45900],[45900,46600,45450,46300],[46300,46450,45100,45300],
+  [45300,46150,45000,45800],[45800,46450,45500,46100],[46100,47400,45850,46900],[46900,47550,46250,47150],
+  [47150,48050,46450,47800],[47800,48150,46350,46900],[46900,47300,46000,46100],[46100,47150,45650,46600]];
+const data = OHLC.map(([o, h, l, c], i) => ({ i: i + 1, o, h, l, c }));
+
+// tokens.json base
+const CONV = {
+  kr: { up: '#cc2b0c', down: '#0b66d6' },
+  us: { up: '#3b8601', down: '#cc2b0c' }
+};
+
+const x = d3.scaleBand().domain(data.map(d => d.i)).range([0, iW]).padding(0.3);
+const y = d3.scaleLinear().domain([44000, 51000]).range([iH, 0]);
+const yTicks = [44000, 47000, 50000];
+const fmt = d3.format(',');
+
+function drawPanel(key) {
+  const C = CONV[key];
+  const color = d => d.c >= d.o ? C.up : C.down;
+  const svg = d3.select('#chart-' + key).append('svg').attr('width', W).attr('height', H);
+  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+  const top = yTicks[yTicks.length - 1];
+
+  // 그리드
+  g.selectAll('line.grid').data(yTicks).join('line')
+    .attr('x1', 0).attr('x2', iW)
+    .attr('y1', d => y(d)).attr('y2', d => y(d))
+    .style('stroke', '#aaaaaa').style('stroke-dasharray', '2').style('stroke-opacity', 0.4);
+
+  // Y축 (맨 위 tick에만 단위)
+  g.append('g').call(d3.axisLeft(y).tickValues(yTicks).tickSize(0).tickPadding(8)
+      .tickFormat(d => fmt(d) + (d === top ? '원' : '')))
+    .call(a => a.select('.domain').remove())
+    .selectAll('text').style('font-size', '13px').style('fill', '#999999').style('font-family', FONT);
+
+  // 꼬리: 고가~저가
+  g.selectAll('line.wick').data(data).join('line')
+    .attr('x1', d => x(d.i) + x.bandwidth() / 2).attr('x2', d => x(d.i) + x.bandwidth() / 2)
+    .attr('y1', d => y(d.h)).attr('y2', d => y(d.l))
+    .attr('stroke', color).attr('stroke-width', 1);
+
+  // 몸통: 시가~종가
+  g.selectAll('rect').data(data).join('rect')
+    .attr('x', d => x(d.i)).attr('width', x.bandwidth())
+    .attr('y', d => y(Math.max(d.o, d.c)))
+    .attr('height', d => Math.max(1, Math.abs(y(d.o) - y(d.c))))
+    .attr('fill', color);
+
+  // X축: 거래일 순서
+  g.append('g').attr('transform', `translate(0,${iH})`)
+    .call(d3.axisBottom(x).tickValues([1, 10, 20]).tickFormat(d => d + '일').tickSize(4).tickPadding(8))
+    .call(a => a.select('.domain').remove())
+    .call(a => a.selectAll('.tick line').style('stroke', '#aaaaaa'))
+    .selectAll('text').style('font-size', '13px').style('fill', '#999999').style('font-family', FONT);
+}
+drawPanel('kr');
+drawPanel('us');
+</script>
+</body>
+</html>

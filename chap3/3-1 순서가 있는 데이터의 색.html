@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>순서가 있는 데이터에는 범주형 팔레트를 사용하지 않기</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7.8.5/dist/d3.min.js"></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); --bg: #fff; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #fff; } }
+  :root[data-theme="dark"] { --bg: #fff; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', 'Noto Sans KR', sans-serif; background: var(--bg); padding: 40px 20px; }
+  .container { max-width: 620px; margin: 0; }
+  .compare-wrap { display: flex; gap: 24px; flex-wrap: wrap; }
+  .panel { flex: 1 1 236px; }
+  .panel-header { font-size: 13px; font-weight: 500; color: #363636; display: flex; align-items: center; gap: 8px;
+    padding-bottom: 8px; margin-bottom: 14px; border-bottom: 1px solid #ddd; }
+  .badge { font-size: 12px; font-weight: 700; border-radius: 4px; padding: 3px 10px; color: #ffffff;
+    letter-spacing: 0.03em; flex-shrink: 0; }
+  .badge-better { background: #37760a; }
+  .badge-worse  { background: #b8351b; }
+  .legend { display: flex; gap: 14px; margin-bottom: 6px; }
+  .legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; line-height: 13px; color: #363636; }
+  .legend-item i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .result { font-size: 13px; line-height: 17px; font-weight: 400; color: #363636; margin-top: 6px; }
+  .result strong { font-weight: 700; }
+  .source { font-size: 13px; line-height: 17px; color: #777777; margin-top: 18px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="compare-wrap">
+    <div class="panel">
+      <div class="panel-header"><span class="badge badge-worse">Worse</span><span>서로 관계없는 다섯 색</span></div>
+      <div class="legend" id="lg-worse"></div>
+      <div id="chart-worse"></div>
+      <p class="result"><strong>결과:</strong> 각 사이즈는 구분되지만, 어느 매장에 작은 사이즈가 많은지 보려면 색을 범례에서 하나씩 확인해야 합니다.</p>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="badge badge-better">Better</span><span>밝은 색에서 어두운 색으로</span></div>
+      <div class="legend" id="lg-better"></div>
+      <div id="chart-better"></div>
+      <p class="result"><strong>결과:</strong> 색이 어두울수록 큰 사이즈라, 밝은 부분이 넓은 매장 B와 어두운 부분이 넓은 매장 D의 차이가 바로 보입니다.</p>
+    </div>
+  </div>
+  <p class="source">매장별 사이즈 판매 구성비(%), 예시 데이터</p>
+</div>
+<script>
+const FONT = "'Pretendard','Noto Sans KR',sans-serif";
+const W = 298, H = 190;
+const margin = { top: 4, right: 22, bottom: 28, left: 50 };
+const iW = W - margin.left - margin.right, iH = H - margin.top - margin.bottom;
+
+const SIZES = ['XS', 'S', 'M', 'L', 'XL'];
+// 예시 데이터: 매장별 사이즈 판매 구성비(%), 합계 100
+const data = [
+  { k: '매장 A', XS: 5,  S: 15, M: 35, L: 30, XL: 15 },
+  { k: '매장 B', XS: 20, S: 30, M: 30, L: 15, XL: 5  },
+  { k: '매장 C', XS: 10, S: 20, M: 35, L: 25, XL: 10 },
+  { k: '매장 D', XS: 3,  S: 10, M: 27, L: 35, XL: 25 }
+];
+
+const PALETTE = {
+  // tokens.json base: 빨강, 파랑, 노랑(mustard), 보라, 초록
+  worse:  ['#cc2b0c', '#0b66d6', '#eaba04', '#824cd5', '#3b8601'],
+  // blue.base 색상을 유지하고 명도만 단계적으로 변화 (OKLCH)
+  better: ['#C3D9F9', '#89B3F0', '#4B88E2', '#1C60BC', '#114081']
+};
+
+const stack = d3.stack().keys(SIZES)(data);
+const y = d3.scaleBand().domain(data.map(d => d.k)).range([0, iH]).padding(0.32);
+const x = d3.scaleLinear().domain([0, 100]).range([0, iW]);
+
+function drawPanel(key) {
+  const C = PALETTE[key];
+  const lg = d3.select('#lg-' + key);
+  SIZES.forEach((s, i) => {
+    const it = lg.append('span').attr('class', 'legend-item');
+    it.append('i').style('background', C[i]);
+    it.node().append(s);
+  });
+
+  const svg = d3.select('#chart-' + key).append('svg').attr('width', W).attr('height', H);
+  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+  stack.forEach((layer, i) => {
+    g.selectAll(null).data(layer).join('rect')
+      .attr('x', d => x(d[0])).attr('width', d => x(d[1]) - x(d[0]))
+      .attr('y', d => y(d.data.k)).attr('height', y.bandwidth())
+      .attr('fill', C[i]).attr('stroke', '#fff').attr('stroke-width', 1);
+  });
+
+  g.selectAll('text.name').data(data).join('text')
+    .attr('x', -8).attr('y', d => y(d.k) + y.bandwidth() / 2).attr('dy', '0.34em')
+    .attr('text-anchor', 'end').style('font-size', '13px').style('fill', '#363636').style('font-family', FONT)
+    .text(d => d.k);
+
+  // X축 (마지막 tick에만 단위)
+  g.append('g').attr('transform', `translate(0,${iH})`)
+    .call(d3.axisBottom(x).tickValues([0, 50, 100]).tickFormat(d => d === 100 ? '100%' : d)
+      .tickSize(4).tickPadding(8))
+    .call(a => a.select('.domain').remove())
+    .call(a => a.selectAll('.tick line').style('stroke', '#aaaaaa'))
+    .selectAll('text').style('font-size', '13px').style('fill', '#999999').style('font-family', FONT);
+
+  // zero line: 막대 이후에 그림
+  g.append('line').attr('x1', 0).attr('x2', 0).attr('y1', 0).attr('y2', iH)
+    .style('stroke', '#363636').style('stroke-opacity', 0.4);
+}
+drawPanel('worse');
+drawPanel('better');
+</script>
+</body>
+</html>

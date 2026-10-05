@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>서로 구분하기 쉬운 색 고르기</title>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family:'Pretendard','Noto Sans KR',sans-serif;
+      background:#fff;
+      padding:40px 20px;
+    }
+
+    .panels { display:flex; gap:24px; align-items:flex-start; }
+    .panel  { display:inline-block; width:236px; }
+
+    .panel-label {
+      font-size: 13px;
+      line-height: 17px;
+      font-weight: 500;
+      color: #363636;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding-bottom: 8px;
+      margin-bottom: 14px;
+      border-bottom: 1px solid #ddd;
+    }
+
+    .badge {
+      font-size: 12px;
+      line-height: 16px;
+      font-weight: 700;
+      border-radius: 4px;
+      padding: 3px 10px;
+      color: #fff;
+      letter-spacing: 0.03em;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .badge-worse  { background: #b8351b; }
+    .badge-better { background: #37760a; }
+
+    .legend {
+      height: 18px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 8px;
+      font-size: 14px;
+      line-height: 14px;
+      color: #363636;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      white-space: nowrap;
+    }
+
+    .legend-swatch {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .note {
+      font-size: 13px;
+      line-height: 17px;
+      font-weight: 400;
+      color: #777;
+      margin-top: 16px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="panels">
+
+  <div class="panel">
+    <p class="panel-label">
+      <span class="badge badge-worse">Worse</span>
+      <span>서로 비슷한 색 사용</span>
+    </p>
+    <div class="legend" id="legend-similar"></div>
+    <div id="chart-similar"></div>
+  </div>
+
+  <div class="panel">
+    <p class="panel-label">
+      <span class="badge badge-better">Better</span>
+      <span>서로 충분히 구분되는 색 사용</span>
+    </p>
+    <div class="legend" id="legend-better"></div>
+    <div id="chart-better"></div>
+  </div>
+
+</div>
+
+<p class="note">※ 두 차트는 같은 데이터를 사용하고 색만 다르게 표현했습니다.</p>
+
+<script>
+const data = [
+  { month:'1', bus:22, subway:34, bicycle:8 },
+  { month:'2', bus:25, subway:32, bicycle:10 },
+  { month:'3', bus:24, subway:36, bicycle:14 },
+  { month:'4', bus:30, subway:35, bicycle:18 },
+  { month:'5', bus:32, subway:38, bicycle:22 }
+];
+
+const series = [
+  { key:'bus', label:'버스' },
+  { key:'subway', label:'지하철' },
+  { key:'bicycle', label:'자전거' }
+];
+
+const palettes = {
+  similar: {
+    bus:'#0b66d6',
+    subway:'#2862c1',
+    bicycle:'#0278c7'
+  },
+  lightness: {
+    bus:'#0278c7',
+    subway:'#cc2b0c',
+    bicycle:'#b5d2a3'
+  },
+  better: {
+    bus:'#0278c7',
+    subway:'#cc2b0c',
+    bicycle:'#3b8601'
+  }
+};
+
+const W = 236, H = 200;
+const M = { top:6, right:12, bottom:30, left:34 };
+const iW = W - M.left - M.right;
+const iH = H - M.top - M.bottom;
+const FONT = "Pretendard,'Noto Sans KR',sans-serif";
+const yTicks = [0, 20, 30, 40];
+
+function drawLegend(containerId, palette) {
+  const wrap = d3.select(containerId);
+  series.forEach(s => {
+    const item = wrap.append('span').attr('class','legend-item');
+    item.append('span')
+      .attr('class','legend-swatch')
+      .style('background', palette[s.key]);
+    item.append('span').text(s.label);
+  });
+}
+
+function drawChart(containerId, palette) {
+  const svg = d3.select(containerId).append('svg')
+    .attr('width', W)
+    .attr('height', H);
+
+  const g = svg.append('g')
+    .attr('transform', `translate(${M.left},${M.top})`);
+
+  const x = d3.scalePoint()
+    .domain(data.map(d => d.month))
+    .range([0, iW]);
+
+  const y = d3.scaleLinear()
+    .domain([0,40])
+    .range([iH,0]);
+
+  g.selectAll('.grid').data(yTicks).join('line')
+    .attr('x1',0).attr('x2',iW)
+    .attr('y1',d => y(d)).attr('y2',d => y(d))
+    .style('stroke', d => d === 0 ? '#363636' : '#aaaaaa')
+    .style('stroke-dasharray', d => d === 0 ? '0' : '2')
+    .style('stroke-opacity',0.4);
+
+  g.append('g')
+    .call(
+      d3.axisLeft(y)
+        .tickValues(yTicks)
+        .tickSize(0)
+        .tickPadding(8)
+    )
+    .call(a => a.select('.domain').remove())
+    .selectAll('text')
+      .style('font-size','13px')
+      .style('fill','#999999')
+      .style('font-family',FONT)
+      .style('text-anchor','end');
+
+  g.append('g')
+    .attr('transform',`translate(0,${iH})`)
+    .call(
+      d3.axisBottom(x)
+        .tickValues(['1','3','5'])
+        .tickSize(4)
+        .tickPadding(8)
+        .tickFormat(d => `${d}월`)
+    )
+    .call(a => a.select('.domain').remove())
+    .selectAll('text')
+      .style('font-size','13px')
+      .style('fill','#999999')
+      .style('font-family',FONT);
+
+  g.selectAll('.tick line').style('stroke','#aaaaaa');
+
+  const line = key => d3.line()
+    .x(d => x(d.month))
+    .y(d => y(d[key]));
+
+  series.forEach(s => {
+    const path = g.append('path')
+      .datum(data)
+      .attr('fill','none')
+      .attr('stroke',palette[s.key])
+      .attr('stroke-width',2)
+      .attr('d',line(s.key));
+
+    const len = path.node().getTotalLength();
+    path
+      .attr('stroke-dasharray',`${len} ${len}`)
+      .attr('stroke-dashoffset',len)
+      .transition()
+      .duration(800)
+      .ease(d3.easeCubicInOut)
+      .attr('stroke-dashoffset',0);
+
+    const last = data[data.length - 1];
+    g.append('circle')
+      .attr('cx',x(last.month))
+      .attr('cy',y(last[s.key]))
+      .attr('r',3.2)
+      .attr('fill',palette[s.key]);
+  });
+}
+
+
+function exportSVG(svgElement, filename = 'chart.svg') {
+  const clone = svgElement.cloneNode(true);
+  const style = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+  style.textContent = "@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css'); text { font-family: 'Pretendard', 'Noto Sans KR', sans-serif; }";
+  clone.insertBefore(style, clone.firstChild);
+  const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  bg.setAttribute('width', '100%');
+  bg.setAttribute('height', '100%');
+  bg.setAttribute('fill', '#FFFFFF');
+  clone.insertBefore(bg, clone.firstChild);
+  const blob = new Blob([new XMLSerializer().serializeToString(clone)], {type:'image/svg+xml'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+drawLegend('#legend-similar', palettes.similar);
+drawLegend('#legend-better', palettes.better);
+
+drawChart('#chart-similar', palettes.similar);
+drawChart('#chart-better', palettes.better);
+</script>
+</body>
+</html>
