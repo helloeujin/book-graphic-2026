@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>3-2 발산형 팔레트</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7.8.5/dist/d3.min.js"></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); --bg: #fff; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #fff; } }
+  :root[data-theme="dark"] { --bg: #fff; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', 'Noto Sans KR', sans-serif; background: var(--bg); padding: 40px 20px; }
+  .container { max-width: 620px; margin: 0; }
+  .compare-wrap { display: flex; gap: 24px; flex-wrap: wrap; }
+  .panel { flex: 1 1 236px; }
+  .panel-header { font-size: 13px; font-weight: 500; color: #363636; display: flex; align-items: center; gap: 8px;
+    padding-bottom: 8px; margin-bottom: 14px; border-bottom: 1px solid #ddd; }
+  .badge { font-size: 12px; font-weight: 700; border-radius: 4px; padding: 3px 10px; color: #ffffff;
+    letter-spacing: 0.03em; flex-shrink: 0; }
+  .badge-better { background: #37760a; }
+  .badge-worse  { background: #b8351b; }
+  .legend { display: flex; gap: 14px; margin-bottom: 6px; }
+  .legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; line-height: 13px; color: #363636; }
+  .legend-item i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .result { font-size: 13px; line-height: 17px; font-weight: 400; color: #363636; margin-top: 6px; }
+  .result strong { font-weight: 700; }
+  .source { font-size: 13px; line-height: 17px; color: #777777; margin-top: 18px; }
+</style>
+<style>
+  .blk { margin-bottom: 28px; }
+  .blk-title { font-size: 13px; font-weight: 500; color: #363636; padding-bottom: 8px; margin-bottom: 14px; border-bottom: 1px solid #ddd; }
+  .blk-body { display: grid; grid-template-columns: 170px 1fr; align-items: start; gap: 12px; }
+  .desc { font-size: 14px; line-height: 21px; color: #363636; padding-top: 6px; }
+  .desc b { font-weight: 700; }
+  .sw { display: flex; gap: 4px; }
+  .sw i { flex: 1; height: 40px; display: block; }
+  .ticks { display: flex; gap: 4px; margin-top: 6px; }
+  .ticks span { flex: 1; text-align: center; font-size: 12px; color: #999999; }
+  .ends { display: grid; grid-template-columns: 1fr auto 1fr; margin-top: 8px; font-size: 12px; color: #777777; }
+  .ends .m { text-align: center; color: #363636; }
+  .ends .r { text-align: right; }
+</style>
+</head>
+<body>
+<div class="container" id="root"></div>
+<script>
+// 기준값 지도와 같은 갈색 ← 중립 → 녹색 팔레트
+const FULL = ['#964C04', '#DEB58E', '#f7f7f7', '#90CDB7', '#04755B'];
+const HUE_ONLY = ['#964C04', '#964C04', '#f7f7f7', '#04755B', '#04755B'];  // 명도 변화 없이 색상만
+const TICKS = ['−20%', '−10%', '0%', '+10%', '+20%'];
+
+const BLOCKS = [
+  { title: '색상만 바꾸면 → 방향',
+    desc: '기준값을 중심으로<br><b>어느 방향에 있는지</b> 구분',
+    colors: HUE_ONLY, left: '← 감소', mid: '기준값', right: '증가 →' },
+  { title: '명도까지 바꾸면 → 방향 + 기준값에서 떨어진 정도',
+    desc: '기준값에서 멀어질수록<br><b>색이 더 어두워짐</b>',
+    colors: FULL, left: '← 기준값에서 멀어짐', mid: '기준값', right: '기준값에서 멀어짐 →' }
+];
+
+const root = document.getElementById('root');
+BLOCKS.forEach(b => {
+  const el = document.createElement('div');
+  el.className = 'blk';
+  el.innerHTML =
+    `<div class="blk-title">${b.title}</div>` +
+    `<div class="blk-body"><div class="desc">${b.desc}</div><div>` +
+      `<div class="sw">${b.colors.map(c =>
+        `<i style="background:${c};${c === '#f7f7f7' ? 'box-shadow:inset 0 0 0 1px #d6d6d6;' : ''}"></i>`).join('')}</div>` +
+      `<div class="ticks">${TICKS.map(t => `<span>${t}</span>`).join('')}</div>` +
+      `<div class="ends"><span>${b.left}</span><span class="m">${b.mid}</span><span class="r">${b.right}</span></div>` +
+    `</div></div>`;
+  root.appendChild(el);
+});
+</script>
+</body>
+</html>

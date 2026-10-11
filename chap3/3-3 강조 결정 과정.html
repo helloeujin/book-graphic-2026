@@ -1,0 +1,38 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>3-3 강조 결정 과정</title>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root { --bg: #fff; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #fff; } }
+  :root[data-theme="dark"] { --bg: #fff; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', 'Noto Sans KR', sans-serif; background: var(--bg); padding: 40px 20px; color: #363636; }
+  .container { max-width: 620px; margin: 0; }
+  .panel-header { font-size: 13px; font-weight: 500; color: #363636; padding-bottom: 8px; margin-bottom: 14px; border-bottom: 1px solid #ddd; }
+  .flow { display: flex; flex-direction: column; gap: 8px; }
+  .step { display: grid; grid-template-columns: 24px 1fr 16px 1fr; align-items: center; gap: 12px;
+    border: 1px solid #ddd; border-radius: 6px; padding: 12px 16px; }
+  .num { width: 24px; height: 24px; border-radius: 50%; background: #824cd5; color: #fff;
+    font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+  .q { font-size: 14px; line-height: 20px; font-weight: 700; word-break: keep-all; min-width: 0; }
+  .arrow { font-size: 14px; color: #999; text-align: center; }
+  .a { font-size: 14px; line-height: 20px; word-break: keep-all; min-width: 0; }
+  @media (max-width: 480px) {
+    .step { grid-template-columns: 24px 1fr; }
+    .arrow { display: none; }
+    .a { grid-column: 2; }
+  }
+</style>
+
+<div class="container">
+  <div class="panel-header">색으로 강조할 때 기억할 것</div>
+  <div class="flow">
+    <div class="step"><div class="num">1</div><div class="q">독자가 가장 먼저 봐야 하는 것은?</div><div class="arrow">→</div><div class="a">메시지에 맞는 강조 대상 정하기</div></div>
+    <div class="step"><div class="num">2</div><div class="q">강조색이 주변과 충분히 다른가?</div><div class="arrow">→</div><div class="a">대비 확인하기</div></div>
+    <div class="step"><div class="num">3</div><div class="q">읽는 순서가 보이는가?</div><div class="arrow">→</div><div class="a">주인공, 비교 대상, 배경으로 위계 나누기</div></div>
+    <div class="step"><div class="num">4</div><div class="q">맥락이 남아 있는가?</div><div class="arrow">→</div><div class="a">지우지 않고 회색으로 물러나게 하기</div></div>
+  </div>
+</div>
+
+</body></html>

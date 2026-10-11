@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>3-2 색의 변화도 데이터의 변화처럼</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7.8.5/dist/d3.min.js"></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); --bg: #fff; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #fff; } }
+  :root[data-theme="dark"] { --bg: #fff; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', 'Noto Sans KR', sans-serif; background: var(--bg); padding: 40px 20px; }
+  .container { max-width: 620px; margin: 0; }
+  .compare-wrap { display: flex; gap: 24px; flex-wrap: wrap; }
+  .panel { flex: 1 1 236px; }
+  .panel-header { font-size: 13px; font-weight: 500; color: #363636; display: flex; align-items: center; gap: 8px;
+    padding-bottom: 8px; margin-bottom: 14px; border-bottom: 1px solid #ddd; }
+  .badge { font-size: 12px; font-weight: 700; border-radius: 4px; padding: 3px 10px; color: #ffffff;
+    letter-spacing: 0.03em; flex-shrink: 0; }
+  .badge-better { background: #37760a; }
+  .badge-worse  { background: #b8351b; }
+  .legend { display: flex; gap: 14px; margin-bottom: 6px; }
+  .legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; line-height: 13px; color: #363636; }
+  .legend-item i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .result { font-size: 13px; line-height: 17px; font-weight: 400; color: #363636; margin-top: 6px; }
+  .result strong { font-weight: 700; }
+  .source { font-size: 13px; line-height: 17px; color: #777777; margin-top: 18px; }
+</style>
+<style>
+  .strip { height: 16px; margin-bottom: 4px; }
+  .ends { display: flex; justify-content: space-between; font-size: 12px; color: #777777; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="compare-wrap">
+    <div class="panel">
+      <div class="panel-header"><span class="badge badge-worse">Worse</span><span>색이 갑자기 변하는 팔레트</span></div>
+      <div class="strip" id="s-uneven"></div>
+      <div class="ends"><span>낮음</span><span>높음</span></div>
+      <div id="m-uneven"></div>
+      <p class="result"><strong>결과:</strong> 값은 부드럽게 이어지는데, 색이 급하게 바뀌는 지점에서 실제로는 없는 경계선이 생겨 보입니다.</p>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="badge badge-better">Better</span><span>색이 고르게 변하는 팔레트</span></div>
+      <div class="strip" id="s-even"></div>
+      <div class="ends"><span>낮음</span><span>높음</span></div>
+      <div id="m-even"></div>
+      <p class="result"><strong>결과:</strong> 값이 변하는 만큼 색도 고르게 변해, 데이터의 부드러운 변화가 그대로 보입니다.</p>
+    </div>
+  </div>
+  <p class="source">가상 데이터: 가운데가 높고 바깥으로 갈수록 부드럽게 낮아지는 값. 두 팔레트는 같은 녹색 계열로, 명도가 변하는 속도만 다름</p>
+</div>
+<script>
+const RAMPS = {"even": ["#DCF5EB", "#D5F1E6", "#CFECE0", "#C8E7DB", "#C1E3D6", "#BBDED0", "#B4D9CB", "#AED5C6", "#A7D0C1", "#A1CBBB", "#9AC7B6", "#94C2B1", "#8DBEAC", "#87B9A7", "#81B5A2", "#7AB09D", "#73AB97", "#6DA792", "#66A38E", "#609E89", "#599A84", "#52957F", "#4B917A", "#448C75", "#3D8870", "#35846C", "#2D7F67", "#247B62", "#19775E", "#097259", "#046D55", "#066851", "#01634D", "#035E49", "#045945", "#005541", "#02503D", "#034B39", "#004635", "#014132", "#023D2E"], "uneven": ["#DCF5EB", "#DCF5EB", "#DCF5EB", "#DBF5EB", "#DBF5EB", "#DBF5EB", "#DBF5EA", "#DAF4EA", "#D9F4E9", "#D8F3E8", "#D7F2E7", "#D5F0E6", "#D2EFE3", "#CFECE0", "#CAE8DC", "#C3E4D7", "#BBDED1", "#B1D7C8", "#A4CDBE", "#94C2B1", "#82B6A3", "#6EA893", "#599983", "#428B74", "#2A7E65", "#077258", "#03664F", "#015C47", "#045440", "#024E3B", "#034938", "#034635", "#014333", "#014131", "#024030", "#003F2F", "#023E2F", "#013E2F", "#003D2E", "#033D2E", "#023D2E"]};
+// 41개 색 단계를 이어 붙인 연속형 스케일
+const scaleOf = cols => d3.scaleLinear().domain(cols.map((_, i) => i / (cols.length - 1)))
+  .range(cols).interpolate(d3.interpolateLab).clamp(true);
+
+const W = 298, H = 180, COLS = 74, ROWS = 45;
+const cw = W / COLS, ch = H / ROWS;
+
+// 가상 데이터: 두 개의 완만한 언덕을 합친 매끄러운 표면 (0~1)
+function field(c, r) {
+  const x = c / (COLS - 1), y = r / (ROWS - 1);
+  const g = (cx, cy, s, a) => a * Math.exp(-((x - cx) ** 2 + ((y - cy) * 0.75) ** 2) / (2 * s * s));
+  return g(0.42, 0.5, 0.22, 0.95) + g(0.78, 0.35, 0.12, 0.45);
+}
+const vals = d3.range(ROWS).flatMap(r => d3.range(COLS).map(c => field(c, r)));
+const vmax = d3.max(vals);
+
+function draw(key) {
+  const color = scaleOf(RAMPS[key]);
+  const strip = d3.select('#s-' + key).append('svg').attr('width', '100%').attr('height', 16)
+    .attr('viewBox', '0 0 300 16').attr('preserveAspectRatio', 'none');
+  d3.range(300).forEach(i => strip.append('rect').attr('x', i).attr('width', 1.2).attr('height', 16).attr('fill', color(i / 299)));
+
+  const svg = d3.select('#m-' + key).append('svg').attr('width', W).attr('height', H);
+  vals.forEach((v, i) => {
+    const c = i % COLS, r = Math.floor(i / COLS);
+    svg.append('rect').attr('x', c * cw).attr('y', r * ch).attr('width', cw + 0.6).attr('height', ch + 0.6)
+      .attr('fill', color(v / vmax));
+  });
+}
+draw('uneven');
+draw('even');
+</script>
+</body>
+</html>

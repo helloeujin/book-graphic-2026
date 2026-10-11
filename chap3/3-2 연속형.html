@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>3-2 연속형</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7.8.5/dist/d3.min.js"></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); --bg: #fff; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #fff; } }
+  :root[data-theme="dark"] { --bg: #fff; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', 'Noto Sans KR', sans-serif; background: var(--bg); padding: 40px 20px; }
+  .container { max-width: 620px; margin: 0; }
+  .compare-wrap { display: flex; gap: 24px; flex-wrap: wrap; }
+  .panel { flex: 1 1 236px; }
+  .panel-header { font-size: 13px; font-weight: 500; color: #363636; display: flex; align-items: center; gap: 8px;
+    padding-bottom: 8px; margin-bottom: 14px; border-bottom: 1px solid #ddd; }
+  .badge { font-size: 12px; font-weight: 700; border-radius: 4px; padding: 3px 10px; color: #ffffff;
+    letter-spacing: 0.03em; flex-shrink: 0; }
+  .badge-better { background: #37760a; }
+  .badge-worse  { background: #b8351b; }
+  .legend { display: flex; gap: 14px; margin-bottom: 6px; }
+  .legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; line-height: 13px; color: #363636; }
+  .legend-item i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .result { font-size: 13px; line-height: 17px; font-weight: 400; color: #363636; margin-top: 6px; }
+  .result strong { font-weight: 700; }
+  .source { font-size: 13px; line-height: 17px; color: #777777; margin-top: 18px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="panel-header"><span>연속형: 값이 변하는 만큼 색도 끊김 없이 변함</span></div>
+  <div id="fig"></div>
+  <p class="result" style="margin-top:6px"><strong>결과:</strong> 색이 부드럽게 이어져 전체적인 변화는 잘 보이지만, 색만 보고 정확한 값을 읽어내기는 어렵습니다.</p>
+  <p class="source">0~100 예시 값. 기준값 지도와 같은 녹색 순차형 팔레트</p>
+</div>
+<script>
+const FONT = "'Pretendard','Noto Sans KR',sans-serif";
+const MODE = 'continuous';   // 'continuous' | 'classed'
+
+// 녹색 순차형 (기준값 지도 왼쪽과 같은 단계)
+const STOPS = ['#B8E3D2', '#7BC2A9', '#2F9E7F', '#04755B', '#034F3C'];
+const BREAKS = [20, 40, 60, 80];            // 구간형 경계 (이상~미만)
+const POINTS = [21, 39, 40];
+
+const contColor = d3.scaleLinear().domain(d3.range(STOPS.length).map(i => i * 100 / (STOPS.length - 1)))
+  .range(STOPS).interpolate(d3.interpolateLab);
+const classColor = v => STOPS[BREAKS.filter(b => v >= b).length];
+const color = MODE === 'continuous' ? contColor : classColor;
+
+const W = 600, M = { l: 20, r: 20 }, iW = W - M.l - M.r;
+const x = d3.scaleLinear().domain([0, 100]).range([M.l, M.l + iW]);
+const yBar = 6, hBar = 30;
+
+const svg = d3.select('#fig').append('svg').attr('width', W).attr('height', 64)
+  .attr('viewBox', `0 0 ${W} 64`).style('max-width', '100%');
+
+// 색 띠
+if (MODE === 'continuous') {
+  const g = svg.append('defs').append('linearGradient').attr('id', 'grad');
+  d3.range(0, 101, 5).forEach(v => g.append('stop').attr('offset', v + '%').attr('stop-color', contColor(v)));
+  svg.append('rect').attr('x', x(0)).attr('y', yBar).attr('width', iW).attr('height', hBar).attr('fill', 'url(#grad)');
+} else {
+  [0, ...BREAKS].forEach((b, i) => {
+    const e = [...BREAKS, 100][i];
+    svg.append('rect').attr('x', x(b)).attr('y', yBar).attr('width', x(e) - x(b)).attr('height', hBar).attr('fill', STOPS[i]);
+  });
+  BREAKS.forEach(b => svg.append('line').attr('x1', x(b)).attr('x2', x(b)).attr('y1', yBar).attr('y2', yBar + hBar)
+    .attr('stroke', '#ffffff').attr('stroke-width', 2));
+}
+
+// 눈금 (띠 아래)
+[0, 20, 40, 60, 80, 100].forEach(v => {
+  svg.append('line').attr('x1', x(v)).attr('x2', x(v)).attr('y1', yBar + hBar).attr('y2', yBar + hBar + 4).attr('stroke', '#aaaaaa');
+  svg.append('text').attr('x', x(v)).attr('y', yBar + hBar + 18).attr('text-anchor', 'middle')
+    .style('font-size', '12px').style('fill', '#999999').style('font-family', FONT).text(v);
+});
+
+</script>
+</body>
+</html>

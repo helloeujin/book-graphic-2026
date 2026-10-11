@@ -1,0 +1,160 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>3-3 서울 강조 예시</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  /* Book figure style: two-panel Worse/Better compare, white ground in both themes */
+  :root {
+    --bg: #FFFFFF; --ink: #363636; --muted: #777777; --tick: #999999;
+    --rule: #dddddd; --highlight: #0b66d6; --neutral: #c4c4c4;
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #FFFFFF; } }
+  :root[data-theme="dark"] { --bg: #FFFFFF; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', 'Noto Sans KR', sans-serif; background: var(--bg); color: var(--ink); padding-block: 40px; padding-inline: 20px; }
+  .container { max-width: 620px; margin: 0; }
+
+  .title { font-size: 17px; line-height: 22px; font-weight: 700; color: var(--ink); padding-bottom: 5px; }
+  .dek   { font-size: 15px; line-height: 19px; color: var(--muted); padding-bottom: 16px; }
+
+  .compare-wrap { display: flex; gap: 24px; flex-wrap: wrap; }
+  .panel { flex: 1 1 236px; min-width: 0; }
+  .panel-header {
+    font-size: 13px; font-weight: 500; color: var(--ink);
+    display: flex; align-items: center; gap: 8px;
+    padding-bottom: 8px; margin-bottom: 14px; border-bottom: 1px solid var(--rule);
+  }
+  .badge { font-size: 12px; font-weight: 700; border-radius: 4px; padding: 3px 10px;
+    color: #ffffff; letter-spacing: 0.03em; flex-shrink: 0; }
+  .badge-better { background: #37760a; }
+  .badge-worse  { background: #b8351b; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-bottom: 8px; min-height: 13px; }
+  .legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; line-height: 13px; color: var(--ink); }
+  .legend-item i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+
+  .result { font-size: 13px; line-height: 17px; color: var(--ink); margin-top: 6px; }
+  .result strong { font-weight: 700; }
+  .source { font-size: 13px; line-height: 17px; color: var(--muted); margin-top: 18px; }
+
+  #export-btn { margin-top: 16px; padding: 8px 16px; font-size: 13px; font-family: inherit;
+    background: #000; color: #fff; border: none; border-radius: 4px; cursor: pointer; }
+  #export-btn:focus-visible { outline: 2px solid var(--highlight); outline-offset: 2px; }
+</style>
+
+<div class="container">
+  <p class="title">중요한 데이터만 색으로 남기면 어디를 먼저 볼지 바로 알 수 있습니다</p>
+  <p class="dek">같은 지역별 매출 데이터를 두 가지 방식으로 표현한 예시</p>
+
+  <div class="compare-wrap">
+    <div class="panel">
+      <div class="panel-header"><span class="badge badge-worse">Worse</span><span>모든 지역을 다른 색으로 표현</span></div>
+      <div class="legend" id="lg-worse"></div>
+      <div id="chart-worse"></div>
+      <p class="result"><strong>결과:</strong> 서울이 어느 막대인지 찾으려면 범례와 막대를 번갈아 확인해야 합니다.</p>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="badge badge-better">Better</span><span>서울만 강조색, 나머지는 중립색</span></div>
+      <div class="legend" id="lg-better"></div>
+      <div id="chart-better"></div>
+      <p class="result"><strong>결과:</strong> 범례 없이도 서울이 가장 먼저 눈에 들어옵니다.</p>
+    </div>
+  </div>
+  <p class="source">지역별 매출(억 원), 예시 데이터</p>
+
+  <button id="export-btn" type="button">SVG 다운로드</button>
+</div>
+
+<script>
+const FONT = "'Pretendard','Noto Sans KR',sans-serif";
+const W = 298, H = 200;
+const M = { top: 18, right: 6, bottom: 28, left: 30 };
+const iW = W - M.left - M.right, iH = H - M.top - M.bottom;
+
+// 예시 데이터
+const data = [
+  { k: '서울', v: 82 }, { k: '경기', v: 74 }, { k: '부산', v: 51 }, { k: '인천', v: 46 },
+  { k: '대구', v: 39 }, { k: '대전', v: 31 }, { k: '광주', v: 28 }
+];
+const MULTI = ['#0b66d6', '#c95c03', '#3b8601', '#b8351b', '#7a4fb5', '#d4a106', '#0f8a8a'];
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+function draw(key) {
+  const isWorse = key === 'worse';
+  const color = (d, i) => isWorse ? MULTI[i] : (d.k === '서울' ? css('--highlight') : css('--neutral'));
+
+  if (isWorse) {
+    const lg = d3.select('#lg-worse');
+    data.forEach((d, i) => {
+      const item = lg.append('span').attr('class', 'legend-item');
+      item.append('i').style('background', MULTI[i]);
+      item.node().append(d.k);
+    });
+  }
+
+  const svg = d3.select(`#chart-${key}`).append('svg')
+    .attr('width', W).attr('height', H).attr('viewBox', `0 0 ${W} ${H}`)
+    .style('max-width', '100%').style('height', 'auto')
+    .attr('xmlns', 'http://www.w3.org/2000/svg').attr('data-name', key);
+  const g = svg.append('g').attr('transform', `translate(${M.left},${M.top})`);
+
+  const x = d3.scaleBand().domain(data.map(d => d.k)).range([0, iW]).padding(0.3);
+  const y = d3.scaleLinear().domain([0, 100]).range([iH, 0]);
+  const yTicks = [0, 50, 100];
+
+  g.selectAll('line.grid').data(yTicks.filter(d => d !== 0)).join('line')
+    .attr('x1', 0).attr('x2', iW).attr('y1', d => y(d)).attr('y2', d => y(d))
+    .style('stroke', '#aaaaaa').style('stroke-dasharray', '2').style('stroke-opacity', 0.4);
+
+  g.append('g')
+    .call(d3.axisLeft(y).tickValues(yTicks).tickSize(0).tickPadding(8))
+    .call(a => a.select('.domain').remove())
+    .selectAll('text').style('font-size', '13px').style('fill', '#999999').style('font-family', FONT);
+
+  g.selectAll('rect').data(data).join('rect')
+    .attr('x', d => x(d.k)).attr('y', d => y(d.v))
+    .attr('width', x.bandwidth()).attr('height', d => iH - y(d.v))
+    .attr('fill', color);
+
+  g.append('line').attr('x1', 0).attr('x2', iW).attr('y1', iH).attr('y2', iH)
+    .style('stroke', '#363636').style('stroke-opacity', 0.4);
+
+  if (!isWorse) {
+    const xa = g.append('g').attr('transform', `translate(0,${iH})`)
+      .call(d3.axisBottom(x).tickSize(0).tickPadding(8))
+      .call(a => a.select('.domain').remove());
+    xa.selectAll('text').style('font-size', '13px').style('font-family', FONT)
+      .style('fill', d => d === '서울' ? css('--highlight') : '#999999')
+      .style('font-weight', d => d === '서울' ? 700 : 400);
+
+    const s = data[0];
+    g.append('text').attr('x', x(s.k) + x.bandwidth() / 2).attr('y', y(s.v) - 6)
+      .attr('text-anchor', 'middle').style('font-size', '13px').style('font-weight', 700)
+      .style('font-family', FONT).style('fill', css('--highlight')).text(s.v);
+  }
+}
+
+draw('worse');
+draw('better');
+
+// SVG export (works when the file is opened locally)
+function exportSVG(svgElement, filename) {
+  const clone = svgElement.cloneNode(true);
+  const style = document.createElement('style');
+  style.textContent = `text { font-family: 'Pretendard', 'Noto Sans KR', sans-serif; }`;
+  clone.insertBefore(style, clone.firstChild);
+  const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  bg.setAttribute('width', '100%'); bg.setAttribute('height', '100%'); bg.setAttribute('fill', '#FFFFFF');
+  clone.insertBefore(bg, clone.firstChild);
+  const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(clone)], { type: 'image/svg+xml' }));
+  const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+document.getElementById('export-btn').addEventListener('click', () => {
+  document.querySelectorAll('svg[data-name]').forEach(s =>
+    exportSVG(s, `3-3_highlight_${s.getAttribute('data-name')}.svg`));
+});
+</script>
+
+</body></html>

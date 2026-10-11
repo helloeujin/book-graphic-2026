@@ -1,0 +1,106 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>3-3 빼기로 강조하기</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7.8.5/dist/d3.min.js"></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root { --bg: #fff; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #fff; } }
+  :root[data-theme="dark"] { --bg: #fff; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', 'Noto Sans KR', sans-serif; background: var(--bg); padding: 40px 20px; }
+  .container { max-width: 620px; margin: 0; }
+  .compare-wrap { display: flex; gap: 24px; flex-wrap: wrap; }
+  .panel { flex: 1 1 236px; min-width: 0; }
+  .panel-header { font-size: 13px; font-weight: 500; color: #363636; display: flex; align-items: center; gap: 8px;
+    padding-bottom: 8px; margin-bottom: 14px; border-bottom: 1px solid #ddd; }
+  .badge { font-size: 12px; font-weight: 700; border-radius: 4px; padding: 3px 10px; color: #ffffff;
+    letter-spacing: 0.03em; flex-shrink: 0; }
+  .badge-better { background: #37760a; }
+  .badge-worse  { background: #b8351b; }
+  .result { font-size: 13px; line-height: 17px; font-weight: 400; color: #363636; margin-top: 6px; }
+  .result strong { font-weight: 700; }
+  .source { font-size: 13px; line-height: 17px; color: #777777; margin-top: 18px; }
+</style>
+
+<div class="container">
+  <div class="compare-wrap">
+    <div class="panel">
+      <div class="panel-header"><span class="badge badge-worse">Worse</span><span>모든 국가를 진한 색으로 표현</span></div>
+      <div id="chart-worse"></div>
+      <p class="result"><strong>결과:</strong> 모든 국가가 비슷한 중요도로 보여 한국을 찾기 어렵습니다.</p>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="badge badge-better">Better</span><span>한국은 강조색, 다른 국가는 회색</span></div>
+      <div id="chart-better"></div>
+      <p class="result"><strong>결과:</strong> 한국을 쉽게 찾으면서 다른 국가와의 상대적인 위치도 확인할 수 있습니다.</p>
+    </div>
+  </div>
+  <p class="source">OECD 회원국의 1인당 GDP(가로, 물가·구매력 조정, 천 달러)와 취업자 1인당 연간 노동시간(세로), 2023년. 출처: Our World in Data(Penn World Table)</p>
+</div>
+
+<script>
+const FONT = "'Pretendard','Noto Sans KR',sans-serif";
+const W = 298, H = 210;
+const margin = { top: 10, right: 14, bottom: 30, left: 66 };
+const iW = W - margin.left - margin.right, iH = H - margin.top - margin.bottom;
+
+// 근사치 예시 데이터: [국가, 1인당 GDP(천 달러, PPP), 연간 노동시간]
+// OWID(Penn World Table 기반), 2023년: [국가, 1인당 GDP(천 달러), 연간 노동시간]
+const DATA = [["호주", 64.3, 1611], ["오스트리아", 62.9, 1438], ["벨기에", 58.1, 1593], ["캐나다", 55.1, 1731], ["칠레", 26.2, 1950], ["콜롬비아", 17.5, 2471], ["코스타리카", 25.1, 2177], ["체코", 44.8, 1774], ["덴마크", 65.9, 1380], ["에스토니아", 37.5, 1606], ["핀란드", 51.7, 1497], ["프랑스", 51.5, 1487], ["독일", 60.0, 1335], ["그리스", 34.3, 1893], ["헝가리", 35.1, 1668], ["아이슬란드", 63.2, 1452], ["아일랜드", 132.5, 1654], ["이스라엘", 44.1, 1890], ["이탈리아", 50.5, 1701], ["일본", 44.3, 1654], ["라트비아", 34.5, 1625], ["리투아니아", 41.7, 1640], ["룩셈부르크", 94.4, 1452], ["멕시코", 20.0, 1629], ["네덜란드", 69.8, 1439], ["뉴질랜드", 47.2, 1708], ["노르웨이", 98.8, 1412], ["폴란드", 39.2, 1807], ["포르투갈", 36.6, 1735], ["슬로바키아", 32.0, 1621], ["슬로베니아", 42.1, 1588], ["스페인", 45.8, 1638], ["스웨덴", 59.6, 1432], ["스위스", 90.0, 1529], ["튀르키예", 35.8, 1747], ["영국", 50.7, 1523], ["미국", 72.9, 1789]];
+const KOREA = ['한국', 56.3, 1910];
+
+// tokens.json base: 파랑, 빨강, 초록, 주황, 보라 (한국과 같은 보라도 섞여 있음)
+const LOUD = ['#0b66d6', '#cc2b0c', '#3b8601', '#c95c03', '#824cd5'];
+const HIGHLIGHT = '#824cd5', NEUTRAL = '#c4c4c4';
+
+const x = d3.scaleLinear().domain([10, 140]).range([0, iW]);
+const y = d3.scaleLinear().domain([1300, 2520]).range([iH, 0]);
+const xTicks = [50, 100], yTicks = [1400, 1800, 2200];
+const fmt = d3.format(',');
+
+function drawPanel(key) {
+  const isWorse = key === 'worse';
+  const svg = d3.select('#chart-' + key).append('svg').attr('width', W).attr('height', H);
+  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+  // 그리드
+  g.selectAll('line.gy').data(yTicks).join('line')
+    .attr('x1', 0).attr('x2', iW).attr('y1', d => y(d)).attr('y2', d => y(d))
+    .style('stroke', '#aaaaaa').style('stroke-dasharray', '2').style('stroke-opacity', 0.4);
+  g.selectAll('line.gx').data(xTicks).join('line')
+    .attr('y1', 0).attr('y2', iH).attr('x1', d => x(d)).attr('x2', d => x(d))
+    .style('stroke', '#aaaaaa').style('stroke-dasharray', '2').style('stroke-opacity', 0.4);
+
+  // Y축 (맨 위 tick에만 단위)
+  g.append('g').call(d3.axisLeft(y).tickValues(yTicks).tickSize(0).tickPadding(8)
+      .tickFormat(d => fmt(d) + (d === 2200 ? '시간' : '')))
+    .call(a => a.select('.domain').remove())
+    .selectAll('text').style('font-size', '13px').style('fill', '#999999').style('font-family', FONT);
+
+  // X축 (마지막 tick에만 단위)
+  g.append('g').attr('transform', `translate(0,${iH})`)
+    .call(d3.axisBottom(x).tickValues(xTicks).tickSize(0).tickPadding(10)
+      .tickFormat(d => d === 100 ? '100천 달러' : d))
+    .call(a => a.select('.domain').remove())
+    .selectAll('text').style('font-size', '13px').style('fill', '#999999').style('font-family', FONT);
+
+  // 점
+  g.selectAll('circle.pt').data(DATA).join('circle')
+    .attr('cx', d => x(d[1])).attr('cy', d => y(d[2])).attr('r', 3.5)
+    .attr('fill', isWorse ? HIGHLIGHT : NEUTRAL)
+    .attr('fill-opacity', 0.8)
+    .attr('stroke', '#fff').attr('stroke-width', 1);
+
+  // 한국: 두 패널 모두 같은 색과 크기, 마지막에 그려 위에 오도록
+  g.append('circle').attr('cx', x(KOREA[1])).attr('cy', y(KOREA[2])).attr('r', 5)
+    .attr('fill', HIGHLIGHT).attr('stroke', '#fff').attr('stroke-width', 1);
+  g.append('text').attr('x', x(KOREA[1]) + 9).attr('y', y(KOREA[2])).attr('dy', '0.34em')
+    .style('font-size', '13px').style('font-weight', 700).style('font-family', FONT)
+    .style('fill', HIGHLIGHT).text('한국');
+}
+drawPanel('worse');
+drawPanel('better');
+</script>
+
+</body></html>

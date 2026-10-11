@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>발산형 팔레트에서 색상과 명도의 역할</title>
+<style>
+*{box-sizing:border-box}body{margin:0;padding:40px 20px;background:#fff;color:#363636;font-family:Pretendard,"Noto Sans KR",sans-serif}
+.figure{max-width:620px;margin:auto}.panel+.panel{margin-top:30px}
+.panel-label{font-size:13px;font-weight:500;display:flex;align-items:center;gap:8px;padding-bottom:8px;margin-bottom:14px;border-bottom:1px solid #ddd}
+.viz{display:grid;grid-template-columns:150px 1fr;gap:22px;align-items:center}
+.copy{font-size:14px;line-height:1.55}.copy b{font-weight:700}
+.swatches,.values{display:grid;grid-template-columns:repeat(5,1fr);gap:4px}.swatch{height:48px}
+.values{margin-top:7px;font-size:11px;color:#777;text-align:center}
+.direction{display:grid;grid-template-columns:2fr 1fr 2fr;margin-top:9px;font-size:12px;color:#636363}
+.direction span:nth-child(2){text-align:center}.direction span:last-child{text-align:right}
+.distance{display:grid;grid-template-columns:2fr 1fr 2fr;margin-top:9px;font-size:12px;color:#636363}
+.distance span:nth-child(2){text-align:center}.distance span:last-child{text-align:right}
+.note{margin-top:24px;padding-top:12px;border-top:1px solid #eee;font-size:13px;line-height:1.55;color:#777}
+@media(max-width:520px){.viz{grid-template-columns:1fr;gap:10px}.swatch{height:42px}}
+</style>
+</head>
+<body>
+<div class="figure">
+
+<section class="panel">
+  <div class="panel-label">색상의 차이 → 방향</div>
+  <div class="viz">
+    <div class="copy">기준값을 중심으로<br><b>어느 방향에 있는지</b> 구분</div>
+    <div>
+      <div class="swatches">
+        <div class="swatch" style="background:#A45100"></div>
+        <div class="swatch" style="background:#A45100"></div>
+        <div class="swatch" style="background:#EAEAEA"></div>
+        <div class="swatch" style="background:#087B5E"></div>
+        <div class="swatch" style="background:#087B5E"></div>
+      </div>
+      <div class="values"><span>−20%</span><span>−10%</span><span>0%</span><span>+10%</span><span>+20%</span></div>
+      <div class="direction"><span>← 감소</span><span>기준값</span><span>증가 →</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-label">명도의 변화 → 기준값에서 떨어진 정도</div>
+  <div class="viz">
+    <div class="copy">기준값에서 멀어질수록<br><b>색이 더 어두워짐</b></div>
+    <div>
+      <div class="swatches">
+        <div class="swatch" style="background:#A45100"></div>
+        <div class="swatch" style="background:#D9A879"></div>
+        <div class="swatch" style="background:#EAEAEA"></div>
+        <div class="swatch" style="background:#8FC4B3"></div>
+        <div class="swatch" style="background:#087B5E"></div>
+      </div>
+      <div class="values"><span>−20%</span><span>−10%</span><span>0%</span><span>+10%</span><span>+20%</span></div>
+      <div class="distance"><span>더 멀리</span><span>기준값</span><span>더 멀리</span></div>
+    </div>
+  </div>
+</section>
+
+<div class="note">색상 계열의 차이는 기준값을 중심으로 한 방향을, 명도의 변화는 기준값에서 떨어진 정도를 읽는 데 도움을 줍니다.</div>
+</div>
+</body>
+</html>

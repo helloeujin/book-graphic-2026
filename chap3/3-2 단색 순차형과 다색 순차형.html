@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>3-2 단색 순차형과 다색 순차형</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7.8.5/dist/d3.min.js"></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); --bg: #fff; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #fff; } }
+  :root[data-theme="dark"] { --bg: #fff; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', 'Noto Sans KR', sans-serif; background: var(--bg); padding: 40px 20px; }
+  .container { max-width: 620px; margin: 0; }
+  .compare-wrap { display: flex; gap: 24px; flex-wrap: wrap; }
+  .panel { flex: 1 1 236px; }
+  .panel-header { font-size: 13px; font-weight: 500; color: #363636; display: flex; align-items: center; gap: 8px;
+    padding-bottom: 8px; margin-bottom: 14px; border-bottom: 1px solid #ddd; }
+  .badge { font-size: 12px; font-weight: 700; border-radius: 4px; padding: 3px 10px; color: #ffffff;
+    letter-spacing: 0.03em; flex-shrink: 0; }
+  .badge-better { background: #37760a; }
+  .badge-worse  { background: #b8351b; }
+  .legend { display: flex; gap: 14px; margin-bottom: 6px; }
+  .legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; line-height: 13px; color: #363636; }
+  .legend-item i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .result { font-size: 13px; line-height: 17px; font-weight: 400; color: #363636; margin-top: 6px; }
+  .result strong { font-weight: 700; }
+  .source { font-size: 13px; line-height: 17px; color: #777777; margin-top: 18px; }
+</style>
+<style>
+  .strip { display: flex; height: 32px; }
+  .strip i { flex: 1; display: block; }
+  .ends { display: flex; justify-content: space-between; margin-top: 6px; font-size: 12px; color: #777777; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="compare-wrap">
+    <div class="panel">
+      <div class="panel-header"><span>단색 순차형</span></div>
+      <div class="strip" id="s-single"></div>
+      <div class="ends"><span>낮음</span><span>높음</span></div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span>다색 순차형</span></div>
+      <div class="strip" id="s-multi"></div>
+      <div class="ends"><span>낮음</span><span>높음</span></div>
+    </div>
+  </div>
+  <p class="result" style="margin-top:16px"><strong>결과:</strong> 색상이 하나든 여러 개든, 두 팔레트 모두 밝은 색에서 어두운 색으로 이어져 낮음에서 높음으로 가는 방향이 분명합니다.</p>
+  <p class="source">두 팔레트의 다섯 단계는 같은 명도로 맞춤 (OKLCH 명도 0.88, 0.76, 0.63, 0.50, 0.38)</p>
+</div>
+<script>
+const PALETTES = {
+  // blue.base 색상 유지, 명도만 변화
+  single: ['#C3D9F9', '#89B3F1', '#4B88E2', '#1C60BC', '#114081'],
+  // 노랑 → 연두 → 청록 → 청록빛 파랑 → 파랑, 명도는 단색과 동일
+  multi:  ['#EED86D', '#7FC76F', '#069E98', '#066D8E', '#114081']
+};
+Object.entries(PALETTES).forEach(([k, cols]) => {
+  const el = document.getElementById('s-' + k);
+  cols.forEach(c => { const i = document.createElement('i'); i.style.background = c; el.appendChild(i); });
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>3-2 발산형처럼 보이지만 아닌 경우</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7.8.5/dist/d3.min.js"></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); --bg: #fff; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #fff; } }
+  :root[data-theme="dark"] { --bg: #fff; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', 'Noto Sans KR', sans-serif; background: var(--bg); padding: 40px 20px; }
+  .container { max-width: 620px; margin: 0; }
+  .compare-wrap { display: flex; gap: 24px; flex-wrap: wrap; }
+  .panel { flex: 1 1 236px; }
+  .panel-header { font-size: 13px; font-weight: 500; color: #363636; display: flex; align-items: center; gap: 8px;
+    padding-bottom: 8px; margin-bottom: 14px; border-bottom: 1px solid #ddd; }
+  .badge { font-size: 12px; font-weight: 700; border-radius: 4px; padding: 3px 10px; color: #ffffff;
+    letter-spacing: 0.03em; flex-shrink: 0; }
+  .badge-better { background: #37760a; }
+  .badge-worse  { background: #b8351b; }
+  .legend { display: flex; gap: 14px; margin-bottom: 6px; }
+  .legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; line-height: 13px; color: #363636; }
+  .legend-item i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .result { font-size: 13px; line-height: 17px; font-weight: 400; color: #363636; margin-top: 6px; }
+  .result strong { font-weight: 700; }
+  .source { font-size: 13px; line-height: 17px; color: #777777; margin-top: 18px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="compare-wrap">
+    <div class="panel">
+      <div class="panel-header"><span>발산형</span></div>
+      <div id="div"></div>
+      <p class="result">의미 있는 기준값을 중심으로 <strong>두 방향</strong>으로 나뉨</p>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span>여러 색을 사용한 순차형</span></div>
+      <div id="seq"></div>
+      <p class="result">의미 있는 기준값 없이 낮은 값에서 높은 값으로 <strong>한 방향</strong>으로 이어짐</p>
+    </div>
+  </div>
+</div>
+<script>
+const FONT = "'Pretendard','Noto Sans KR',sans-serif";
+const P = {"div": ["#0C54A0", "#488ACB", "#98C3E8", "#F7F7F7", "#E9B999", "#D77343", "#AB331F"], "seq": ["#CEEEFE", "#A3CFFD", "#A3A0F3", "#B36BC4", "#B53C7F", "#A51C30", "#821E00"]};
+const W = 298, BAR = 28, Y = 22, H = 76;
+
+function base(sel, id, cols) {
+  const svg = d3.select(sel).append('svg').attr('width', W).attr('height', H);
+  const g = svg.append('defs').append('linearGradient').attr('id', id);
+  cols.forEach((c, i) => g.append('stop').attr('offset', (i / (cols.length - 1) * 100) + '%').attr('stop-color', c));
+  svg.append('rect').attr('x', 0).attr('y', Y).attr('width', W).attr('height', BAR).attr('fill', `url(#${id})`);
+  return svg;
+}
+function label(svg, x, s, anchor, o = {}) {
+  svg.append('text').attr('x', x).attr('y', o.y ?? (Y + BAR + 18)).attr('text-anchor', anchor)
+    .style('font-size', '12px').style('fill', o.color || '#777777').style('font-family', FONT).text(s);
+}
+
+// 발산형: 가운데 기준값 표시
+const d = base('#div', 'g-div', P.div), mid = W / 2;
+label(d, mid, '기준값', 'middle', { y: 11, color: '#363636' });
+d.append('circle').attr('cx', mid).attr('cy', 16).attr('r', 2.5).attr('fill', '#363636');
+d.append('line').attr('x1', mid).attr('x2', mid).attr('y1', 16).attr('y2', Y + BAR).attr('stroke', '#363636');
+label(d, 0, '기준값보다 낮음', 'start');
+label(d, W, '기준값보다 높음', 'end');
+
+// 여러 색을 사용한 순차형
+const s = base('#seq', 'g-seq', P.seq);
+label(s, 0, '낮음', 'start');
+label(s, W, '높음', 'end');
+</script>
+</body>
+</html>

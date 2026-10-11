@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>3-2 기준값이 있는가</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7.8.5/dist/d3.min.js"></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); --bg: #fff; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #fff; } }
+  :root[data-theme="dark"] { --bg: #fff; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', 'Noto Sans KR', sans-serif; background: var(--bg); padding: 40px 20px; }
+  .container { max-width: 620px; margin: 0; }
+  .compare-wrap { display: flex; gap: 24px; flex-wrap: wrap; }
+  .panel { flex: 1 1 236px; }
+  .panel-header { font-size: 13px; font-weight: 500; color: #363636; display: flex; align-items: center; gap: 8px;
+    padding-bottom: 8px; margin-bottom: 14px; border-bottom: 1px solid #ddd; }
+  .badge { font-size: 12px; font-weight: 700; border-radius: 4px; padding: 3px 10px; color: #ffffff;
+    letter-spacing: 0.03em; flex-shrink: 0; }
+  .badge-better { background: #37760a; }
+  .badge-worse  { background: #b8351b; }
+  .legend { display: flex; gap: 14px; margin-bottom: 6px; }
+  .legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; line-height: 13px; color: #363636; }
+  .legend-item i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .result { font-size: 13px; line-height: 17px; font-weight: 400; color: #363636; margin-top: 6px; }
+  .result strong { font-weight: 700; }
+  .source { font-size: 13px; line-height: 17px; color: #777777; margin-top: 18px; }
+</style>
+<style>
+  .scale { display: flex; justify-content: flex-end; margin-top: 10px; }
+  .lg-title { font-size: 12px; color: #363636; margin-bottom: 4px; }
+  .lg-bar { display: flex; gap: 2px; }
+  .lg-bar i { display: block; height: 10px; }
+  .lg-ticks { position: relative; height: 16px; margin-top: 3px; }
+  .lg-ticks span { position: absolute; transform: translateX(-50%); font-size: 12px; color: #777777; white-space: nowrap; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="compare-wrap">
+    <div class="panel">
+      <div class="panel-header"><span>기준값이 없는 데이터: 인구밀도</span></div>
+      <div id="map-a"></div>
+      <div class="scale" id="sc-a"></div>
+      <p class="result"><strong>결과:</strong> 값이 얼마나 낮고 높은지가 중요하므로 한 방향으로 진해지는 색으로 충분합니다.</p>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span>기준값이 있는 데이터: 인구 증감률</span></div>
+      <div id="map-b"></div>
+      <div class="scale" id="sc-b"></div>
+      <p class="result"><strong>결과:</strong> 0% 근처는 중립색, 인구가 줄어든 주는 갈색 계열, 늘어난 주는 녹색 계열로 나뉩니다.</p>
+    </div>
+  </div>
+  <p class="source">출처: 미국 인구조사국(U.S. Census Bureau). 인구밀도는 2020년 인구조사(명/㎢로 환산), 인구 증감률은 2020년 4월~2025년 7월. 캔자스대 정책사회연구소 정리 자료</p>
+</div>
+<script>
+const FONT = "'Pretendard','Noto Sans KR',sans-serif";
+// 2020년 인구조사, 제곱마일당 인구 (U.S. Census Bureau)
+const PER_SQMI = {
+  AL: 99.2, AK: 1.3, AZ: 62.9, AR: 57.9, CA: 253.7, CO: 55.7, CT: 744.7, DE: 508.0, DC: 11280.7,
+  FL: 401.4, GA: 185.6, HI: 226.6, ID: 22.3, IL: 230.8, IN: 189.4, IA: 57.1, KS: 35.9, KY: 114.1,
+  LA: 107.8, ME: 44.2, MD: 636.1, MA: 901.2, MI: 178.0, MN: 71.7, MS: 63.1, MO: 89.5, MT: 7.4,
+  NE: 25.5, NV: 28.3, NH: 153.9, NJ: 1263.0, NM: 17.5, NY: 428.7, NC: 214.7, ND: 11.3, OH: 288.8,
+  OK: 57.7, OR: 44.1, PA: 290.6, RI: 1061.4, SC: 170.3, SD: 11.7, TN: 167.6, TX: 111.6, UT: 39.7,
+  VT: 69.8, VA: 218.6, WA: 115.9, WV: 74.6, WI: 108.8, WY: 5.9
+};
+const SQMI_TO_KM2 = 2.58999; // 1제곱마일 = 2.58999㎢
+const density = s => PER_SQMI[s] / SQMI_TO_KM2;  // 명/㎢
+
+// 구간 (명/㎢)
+
+// 인구 증감률(%), 2020년 4월 1일 ~ 2025년 7월 1일
+const CHANGE = {
+  AL: 3.4, AK: 0.5, AZ: 6.6, AR: 3.4, CA: -0.5, CO: 4.1, CT: 2.3, DE: 7.1, DC: 0.6, FL: 8.9, GA: 5.5,
+  HI: -1.5, ID: 10.4, IL: -0.7, IN: 2.8, IA: 1.5, KS: 1.3, KY: 2.2, LA: -0.8, ME: 3.9, MD: 1.4, MA: 1.8,
+  MI: 0.5, MN: 2.2, MS: -0.2, MO: 1.9, MT: 5.6, NE: 2.9, NV: 5.7, NH: 2.7, NJ: 2.8, NM: 0.4, NY: -1.0,
+  NC: 7.3, ND: 2.6, OH: 0.9, OK: 4.1, OR: 0.9, PA: 0.4, RI: 1.6, SC: 8.8, SD: 5.5, TN: 5.8, TX: 8.8,
+  UT: 8.2, VT: 0.2, VA: 2.9, WA: 3.8, WV: -1.5, WI: 1.3, WY: 2.1
+};
+
+// 왼쪽: 순차형
+// 오른쪽 증가 쪽과 같은 녹색 계열, 명도만 변화 (OKLCH 0.88 → 0.38)
+const SEQ = ['#B8E3D2', '#7BC2A9', '#2F9E7F', '#04755B', '#034F3C'];
+const seqCls = v => [10, 25, 50, 100].filter(b => v >= b).length;
+
+// 오른쪽: 0% 기준 양쪽으로 다른 색 (감소 = 갈색 계열, 0 근처 = 중립, 증가 = 녹색 계열)
+// 양쪽 같은 명도로 맞춤 (OKLCH 0.50 / 0.80)
+const DIV = ['#964C04', '#DEB58E', '#f7f7f7', '#90CDB7', '#04755B'];
+const divCls = v => v <= -1 ? 0 : v < -0.25 ? 1 : v <= 0.25 ? 2 : v < 1 ? 3 : 4;
+
+// 타일 그리드 맵 배치 [행, 열]
+const TILES = {
+  AK: [0, 0], ME: [0, 11],
+  VT: [1, 10], NH: [1, 11],
+  WA: [2, 1], ID: [2, 2], MT: [2, 3], ND: [2, 4], MN: [2, 5], IL: [2, 6], WI: [2, 7], MI: [2, 8], NY: [2, 9], RI: [2, 10], MA: [2, 11],
+  OR: [3, 1], NV: [3, 2], WY: [3, 3], SD: [3, 4], IA: [3, 5], IN: [3, 6], OH: [3, 7], PA: [3, 8], NJ: [3, 9], CT: [3, 10],
+  CA: [4, 1], UT: [4, 2], CO: [4, 3], NE: [4, 4], MO: [4, 5], KY: [4, 6], WV: [4, 7], VA: [4, 8], MD: [4, 9], DE: [4, 10],
+  AZ: [5, 2], NM: [5, 3], KS: [5, 4], AR: [5, 5], TN: [5, 6], NC: [5, 7], SC: [5, 8], DC: [5, 9],
+  OK: [6, 4], LA: [6, 5], MS: [6, 6], AL: [6, 7], GA: [6, 8],
+  HI: [7, 0], TX: [7, 4], FL: [7, 9]
+};
+
+
+const W = 298, COLS = 12, ROWS = 8, GAP = 2;
+const S = (W - GAP * (COLS - 1)) / COLS;
+const H = ROWS * S + GAP * (ROWS - 1);
+
+function drawMap(sel, fillOf) {
+  const svg = d3.select(sel).append('svg').attr('width', W).attr('height', H);
+  Object.entries(TILES).forEach(([st, [r, c]]) => {
+    const fill = fillOf(st);
+    const g = svg.append('g').attr('transform', `translate(${c * (S + GAP)},${r * (S + GAP)})`);
+    g.append('rect').attr('width', S).attr('height', S).attr('rx', 2).attr('fill', fill)
+      .attr('stroke', d3.lab(fill).l > 95 ? '#d6d6d6' : 'none');  // 중립색 칸이 흰 배경에 묻히지 않게
+    g.append('text').attr('x', S / 2).attr('y', S / 2).attr('dy', '0.34em').attr('text-anchor', 'middle')
+      .style('font-size', '9px').style('font-weight', 700).style('font-family', FONT)
+      .style('fill', d3.lab(fill).l < 62 ? '#ffffff' : '#363636').text(st);
+  });
+}
+drawMap('#map-a', st => SEQ[seqCls(density(st))]);
+drawMap('#map-b', st => DIV[divCls(CHANGE[st])]);
+
+// 구간형 범례: 위에 제목, 칸 사이 경계에 숫자
+function stepLegend(sel, colors, ticks, title) {
+  const SW = 40, GAP = 2;
+  const box = d3.select(sel).html('').append('div').attr('class', 'lg');
+  box.append('div').attr('class', 'lg-title').text(title);
+  const bar = box.append('div').attr('class', 'lg-bar');
+  colors.forEach(c => bar.append('i').style('width', SW + 'px').style('background', c)
+    .style('box-shadow', d3.lab(c).l > 95 ? 'inset 0 0 0 1px #d6d6d6' : 'none'));
+  const tk = box.append('div').attr('class', 'lg-ticks').style('width', (colors.length * SW + (colors.length - 1) * GAP) + 'px');
+  ticks.forEach((t, i) => tk.append('span').style('left', ((i + 1) * SW + i * GAP + GAP / 2) + 'px').text(t));
+}
+
+stepLegend('#sc-a', SEQ, ['10', '25', '50', '100'], '인구밀도(명/㎢)');
+stepLegend('#sc-b', DIV, ['−1', '−0.25', '+0.25', '+1'], '인구 증감률(%)');
+</script>
+</body>
+</html>

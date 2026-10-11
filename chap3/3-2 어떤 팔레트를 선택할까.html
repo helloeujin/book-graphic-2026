@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>3-2 어떤 팔레트를 선택할까</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7.8.5/dist/d3.min.js"></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); --bg: #fff; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #fff; } }
+  :root[data-theme="dark"] { --bg: #fff; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', 'Noto Sans KR', sans-serif; background: var(--bg); padding: 40px 20px; }
+  .container { max-width: 620px; margin: 0; }
+  .compare-wrap { display: flex; gap: 24px; flex-wrap: wrap; }
+  .panel { flex: 1 1 236px; }
+  .panel-header { font-size: 13px; font-weight: 500; color: #363636; display: flex; align-items: center; gap: 8px;
+    padding-bottom: 8px; margin-bottom: 14px; border-bottom: 1px solid #ddd; }
+  .badge { font-size: 12px; font-weight: 700; border-radius: 4px; padding: 3px 10px; color: #ffffff;
+    letter-spacing: 0.03em; flex-shrink: 0; }
+  .badge-better { background: #37760a; }
+  .badge-worse  { background: #b8351b; }
+  .legend { display: flex; gap: 14px; margin-bottom: 6px; }
+  .legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; line-height: 13px; color: #363636; }
+  .legend-item i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .result { font-size: 13px; line-height: 17px; font-weight: 400; color: #363636; margin-top: 6px; }
+  .result strong { font-weight: 700; }
+  .source { font-size: 13px; line-height: 17px; color: #777777; margin-top: 18px; }
+</style>
+<style>
+  .q { text-align: left; font-size: 14px; font-weight: 700; color: #363636; padding-top: 12px; border-top: 1px solid #ddd; }
+  .q .n { color: #999999; font-weight: 500; margin-right: 6px; }
+  .conn { display: block; width: 100%; height: 26px; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; text-align: center; margin-top: 14px; }
+  .lab { font-size: 12px; color: #999999; margin-bottom: 4px; }
+  .t { font-size: 14px; font-weight: 700; color: #363636; }
+  .d { font-size: 12px; color: #777777; margin: 2px 0 8px; }
+  .mini { width: 60%; height: 8px; margin: 0 auto; display: flex; gap: 2px; }
+  .mini i { flex: 1; display: block; }
+  .gap { height: 28px; }
+  .chk { margin-top: 8px; }
+  .chk p { font-size: 12px; color: #777777; text-align: left; margin: 8px 0 12px; }
+  .row { display: grid; grid-template-columns: 40px 1fr; align-items: center; gap: 8px; margin-top: 6px; }
+  .row span { font-size: 12px; color: #999999; }
+  .row div { height: 8px; }
+</style>
+</head>
+<body>
+<div class="container" id="root"></div>
+<script>
+// 3-2 예시들과 같은 색
+const SEQ   = ['#B8E3D2', '#7BC2A9', '#2F9E7F', '#04755B', '#034F3C'];
+const DIV   = ['#964C04', '#DEB58E', '#f7f7f7', '#90CDB7', '#04755B'];
+const MULTI = ['#EED86D', '#7FC76F', '#069E98', '#066D8E', '#114081'];
+const GRAY  = ['#D8D8D8', '#B6B6B6', '#8D8D8D', '#656565', '#424242'];   // MULTI의 명도(L*)
+
+const grad = c => `<div class="mini" style="background:linear-gradient(to right, ${c.join(',')})"></div>`;
+const steps = c => `<div class="mini">${c.map(x => `<i style="background:${x}"></i>`).join('')}</div>`;
+// 질문 아래 가는 갈래선
+const conn = `<svg class="conn" viewBox="0 0 620 26" preserveAspectRatio="none">
+  <path d="M310,0 V10 M154,10 H466 M154,10 V26 M466,10 V26" fill="none" stroke="#cccccc"/></svg>`;
+
+const step = (n, q, cols) => `
+  <div class="q"><span class="n">${n}</span>${q}</div>
+  <div class="cols">${cols.map(c => `<div><div class="t">${c.t}</div><div class="d">${c.d}</div>${c.v}</div>`).join('')}</div>`;
+
+document.getElementById('root').innerHTML =
+  step(1, '의미 있는 기준값을 중심으로 양쪽의 차이를 보여주는 것이 중요한가?', [
+    { lab: '아니오', t: '순차형 팔레트', d: '낮음 → 높음', v: grad(SEQ) },
+    { lab: '예', t: '발산형 팔레트', d: '한 방향 ← 기준값 → 다른 방향', v: grad(DIV) }
+  ]) + '<div class="gap"></div>' +
+  step(2, '값을 어떻게 보여줄 것인가?', [
+    { lab: '연속적인 변화', t: '연속형', d: '값의 변화를 끊김 없이 표현', v: grad(SEQ) },
+    { lab: '의미 있는 범위', t: '구간형', d: '값을 몇 개의 범위로 나누어 표현', v: steps(SEQ) }
+  ]) + '<div class="gap"></div>' +
+  `<div class="q"><span class="n">3</span>색의 변화가 데이터의 변화처럼 보이는가?</div>
+   <div class="chk">
+     <p>긴 색 띠로 갑자기 변하는 지점이 없는지, 회색조로 명도가 한 방향으로 이어지는지 확인</p>
+     <div class="row"><span>색</span><div style="background:linear-gradient(to right, ${MULTI.join(',')})"></div></div>
+     <div class="row"><span>회색조</span><div style="background:linear-gradient(to right, ${GRAY.join(',')})"></div></div>
+   </div>`;
+</script>
+</body>
+</html>
