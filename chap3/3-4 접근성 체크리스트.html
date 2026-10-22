@@ -1,0 +1,54 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>3-4 접근성 체크리스트</title>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); --bg: #fff; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #fff; } }
+  :root[data-theme="dark"] { --bg: #fff; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', 'Noto Sans KR', sans-serif; background: var(--bg); padding: 40px 20px; color: #363636; }
+  .container { max-width: 620px; margin: 0; }
+  .panel-header { font-size: 13px; font-weight: 500; color: #363636; padding-bottom: 8px; margin-bottom: 6px; border-bottom: 1px solid #ddd; }
+  .item { display: grid; grid-template-columns: 18px 56px minmax(0, 1fr); column-gap: 14px; align-items: center;
+    padding: 14px 0; border-bottom: 1px solid #eee; }
+  .box { width: 16px; height: 16px; border: 1.5px solid #363636; border-radius: 3px; }
+  .q { font-size: 14px; line-height: 20px; font-weight: 700; }
+  .a { font-size: 13px; line-height: 18px; color: #555; margin-top: 3px; }
+  .source { font-size: 13px; line-height: 17px; color: #777777; margin-top: 14px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="panel-header">색을 고를 때부터 공유하기 전까지 확인할 질문</div>
+
+  <div class="item"><div class="box"></div>
+    <svg width="56" height="36" viewBox="0 0 56 36"><rect x="6" y="6" width="20" height="24" fill="#0a3f86"/><rect x="30" y="6" width="20" height="24" fill="#f0a35e"/></svg>
+    <div><p class="q">색상 조합이 충분히 구분되는가?</p><p class="a">색상과 명도 차이를 확인하고, 불필요하게 많은 색을 쓰지 않았는지 점검</p></div></div>
+
+  <div class="item"><div class="box"></div>
+    <svg width="56" height="36" viewBox="0 0 56 36"><path d="M3 26 L14 18 L24 22 L34 10" fill="none" stroke="#824cd5" stroke-width="2.5" stroke-linecap="round"/><path d="M3 32 L14 28 L24 30 L34 24" fill="none" stroke="#14897d" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="1 4"/><text x="38" y="14" font-size="11" font-weight="700" fill="#824cd5" font-family="Pretendard, sans-serif">A</text><text x="38" y="28" font-size="11" font-weight="700" fill="#14897d" font-family="Pretendard, sans-serif">B</text></svg>
+    <div><p class="q">색을 구분하지 못해도 핵심 정보를 이해할 수 있는가?</p><p class="a">필요하면 레이블, 형태, 선 스타일 추가</p></div></div>
+
+  <div class="item"><div class="box"></div>
+    <svg width="56" height="36" viewBox="0 0 56 36"><rect x="0.5" y="0.5" width="55" height="35" fill="#fff" stroke="#ddd"/><rect x="8" y="9" width="20" height="18" fill="#0b66d6"/><rect x="29.5" y="9" width="10" height="18" fill="#c95c03"/><rect x="41" y="9" width="7" height="18" fill="#8a8a8a"/></svg>
+    <div><p class="q">데이터가 배경과 주변 데이터에서 충분히 구분되는가?</p><p class="a">실제 크기의 선, 점, 면에서 확인</p></div></div>
+
+  <div class="item"><div class="box"></div>
+    <svg width="56" height="36" viewBox="0 0 56 36"><rect x="6" y="6" width="12" height="24" fill="#cc2b0c"/><rect x="18" y="6" width="12" height="24" fill="#3b8601"/><rect x="32" y="6" width="9" height="24" fill="#6f6f6f"/><rect x="41" y="6" width="9" height="24" fill="#787878"/></svg>
+    <div><p class="q">흑백과 색각 시뮬레이션에서도 핵심 의미가 유지되는가?</p><p class="a">카테고리, 값의 순서, 방향, 강조 확인</p></div></div>
+
+  <div class="item"><div class="box"></div>
+    <svg width="56" height="36" viewBox="0 0 56 36"><rect x="2" y="5" width="32" height="22" rx="2" fill="none" stroke="#363636" stroke-width="1.5"/><line x1="12" y1="31" x2="24" y2="31" stroke="#363636" stroke-width="1.5"/><rect x="40" y="3" width="14" height="28" rx="3" fill="none" stroke="#363636" stroke-width="1.5"/><rect x="7" y="17" width="5" height="6" fill="#0b66d6"/><rect x="14" y="13" width="5" height="10" fill="#0b66d6"/><rect x="21" y="10" width="5" height="13" fill="#0b66d6"/><rect x="43" y="18" width="3" height="8" fill="#0b66d6"/><rect x="48" y="14" width="3" height="12" fill="#0b66d6"/></svg>
+    <div><p class="q">실제로 사용할 환경에서도 읽히는가?</p><p class="a">필요하면 모바일, 프로젝터, 인쇄, 다른 배경에서 확인</p></div></div>
+
+</div>
+</body>
+</html>
+
+</body></html>

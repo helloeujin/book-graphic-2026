@@ -1,0 +1,143 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>3-4 강조색과 회색 데이터</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7.8.5/dist/d3.min.js"></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); --bg: #fff; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #fff; } }
+  :root[data-theme="dark"] { --bg: #fff; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', 'Noto Sans KR', sans-serif; background: var(--bg); padding: 40px 20px; }
+  .container { max-width: 620px; margin: 0; }
+  .compare-wrap { display: flex; gap: 24px; flex-wrap: wrap; }
+  .panel { flex: 1 1 236px; min-width: 0; }
+  .panel-header { font-size: 13px; font-weight: 500; color: #363636; display: flex; align-items: center; gap: 8px;
+    padding-bottom: 8px; margin-bottom: 14px; border-bottom: 1px solid #ddd; }
+  .badge { font-size: 12px; font-weight: 700; border-radius: 4px; padding: 3px 10px; color: #ffffff;
+    letter-spacing: 0.03em; flex-shrink: 0; }
+  .badge-better { background: #37760a; }
+  .badge-worse  { background: #b8351b; }
+  .cond { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
+  .cond-name { font-size: 13px; color: #363636; }
+  .legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; line-height: 13px; color: #363636; }
+  .legend-item i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .sub { margin-bottom: 14px; }
+  .result { font-size: 13px; line-height: 17px; font-weight: 400; color: #363636; margin-top: 2px; }
+  .result strong { font-weight: 700; }
+  .source { font-size: 13px; line-height: 17px; color: #777777; margin-top: 18px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="compare-wrap">
+    <div class="panel">
+      <div class="panel-header"><span class="badge badge-worse">Before</span><span>명도가 회색과 비슷한 분홍으로 강조</span></div>
+      <div class="sub" id="before-normal"></div>
+      <div class="sub" id="before-sim"></div>
+      <p class="result"><strong>결과:</strong> 녹색맹 조건에서 강조색이 회색 선과 비슷해져 어느 선을 강조했는지 알기 어렵습니다.</p>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="badge badge-better">After</span><span>회색보다 어두운 파랑으로 강조</span></div>
+      <div class="sub" id="after-normal"></div>
+      <div class="sub" id="after-sim"></div>
+      <p class="result"><strong>결과:</strong> 같은 조건에서도 강조한 선이 회색 선 사이에서 바로 눈에 들어옵니다.</p>
+    </div>
+  </div>
+  <p class="source">8개 지점의 월별 방문자 수(천 명), 예시 데이터. 각 패널의 아래 차트는 녹색맹(deuteranopia) 조건을 Machado et al.(2009) 모델로 시뮬레이션한 모습입니다.</p>
+</div>
+<script>
+const FONT = "'Pretendard','Noto Sans KR',sans-serif";
+// 녹색맹(deuteranopia, severity 1.0) 시뮬레이션: Machado, Oliveira & Fernandes (2009)
+// 선형 RGB에서 행렬을 적용한 뒤 sRGB로 되돌림 (colorspacious 구현과 값 일치 확인)
+const M = [[0.367322, 0.860646, -0.227968],
+           [0.280085, 0.672501,  0.047413],
+           [-0.011820, 0.042940, 0.968881]];
+const toLin = c => { c /= 255; return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+const toSrgb = c => { c = Math.min(1, Math.max(0, c));
+  return Math.round(255 * (c <= 0.0031308 ? 12.92 * c : 1.055 * Math.pow(c, 1 / 2.4) - 0.055)); };
+function simulate(hex) {
+  const c = d3.rgb(hex), lin = [c.r, c.g, c.b].map(toLin);
+  const out = M.map(row => toSrgb(row[0] * lin[0] + row[1] * lin[1] + row[2] * lin[2]));
+  return d3.rgb(...out).formatHex();
+}
+const simAll = C => Object.fromEntries(Object.entries(C).map(([k, v]) => [k, simulate(v)]));
+function condHeader(sel, name, items) {
+  const h = d3.select(sel).append('div').attr('class', 'cond');
+  h.append('span').attr('class', 'cond-name').text(name);
+  items.forEach(([color, label]) => {
+    const it = h.append('span').attr('class', 'legend-item');
+    it.append('i').style('background', color);
+    it.node().append(label);
+  });
+}
+
+const W = 298, H = 150;
+const margin = { top: 8, right: 12, bottom: 24, left: 30 };
+const iW = W - margin.left - margin.right, iH = H - margin.top - margin.bottom;
+
+// 예시 데이터: 8개 지점, 1~12월 방문자 수(천 명). 강조 대상은 'C 지점'
+const months = d3.range(1, 13);
+const SERIES = [
+  { k: 'A 지점', v: [42, 44, 47, 46, 50, 53, 55, 54, 52, 51, 49, 48] },
+  { k: 'B 지점', v: [35, 36, 38, 40, 41, 43, 46, 47, 45, 43, 42, 44] },
+  { k: 'C 지점', v: [20, 22, 25, 29, 33, 38, 44, 50, 55, 59, 63, 66] },
+  { k: 'D 지점', v: [30, 29, 31, 30, 32, 31, 33, 34, 33, 32, 31, 30] },
+  { k: 'E 지점', v: [50, 49, 51, 50, 48, 47, 46, 45, 44, 45, 43, 42] },
+  { k: 'F 지점', v: [25, 26, 26, 27, 28, 28, 29, 30, 30, 31, 31, 32] },
+  { k: 'G 지점', v: [38, 37, 36, 37, 38, 37, 36, 35, 36, 37, 38, 37] },
+  { k: 'H 지점', v: [28, 30, 29, 31, 30, 32, 31, 30, 29, 28, 29, 27] }
+];
+const FOCUS = 'C 지점';
+
+// 회색은 3-3 예시와 같은 #bbbbbb
+// Before: 분홍(명도가 회색과 비슷), After: tokens.json 파랑(회색보다 확실히 어두움)
+const PALETTE = {
+  before: { gray: '#bbbbbb', hi: '#ee8fae' },
+  after:  { gray: '#bbbbbb', hi: '#0b66d6' }
+};
+
+const x = d3.scaleLinear().domain([1, 12]).range([0, iW]);
+const y = d3.scaleLinear().domain([0, 70]).range([iH, 0]);
+const yTicks = [0, 35, 70];
+
+function drawChart(sel, C, name) {
+  condHeader(sel, name, []);
+  const svg = d3.select(sel).append('svg').attr('width', W).attr('height', H);
+  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+  g.selectAll('line.gy').data(yTicks).join('line')
+    .attr('x1', 0).attr('x2', iW).attr('y1', d => y(d)).attr('y2', d => y(d))
+    .style('stroke', '#aaaaaa').style('stroke-dasharray', '2').style('stroke-opacity', 0.4);
+  g.append('g').call(d3.axisLeft(y).tickValues(yTicks).tickSize(0).tickPadding(8))
+    .call(a => a.select('.domain').remove())
+    .selectAll('text').style('font-size', '13px').style('fill', '#999999').style('font-family', FONT);
+  g.append('g').attr('transform', `translate(0,${iH})`)
+    .call(d3.axisBottom(x).tickValues([1, 6, 12]).tickSize(0).tickPadding(8).tickFormat(d => d + '월'))
+    .call(a => a.select('.domain').remove())
+    .selectAll('text').style('font-size', '13px').style('fill', '#999999').style('font-family', FONT);
+  const line = d3.line().x((d, i) => x(months[i])).y(d => y(d));
+  // 색의 효과만 비교하도록 선 굵기는 모두 같게, 레이블 없이 표시
+  // 회색 선 먼저, 강조 선은 마지막에
+  SERIES.filter(s => s.k !== FOCUS).forEach(s => {
+    g.append('path').datum(s.v).attr('d', line).attr('fill', 'none')
+      .attr('stroke', C.gray).attr('stroke-width', 2);
+  });
+  const f = SERIES.find(s => s.k === FOCUS);
+  g.append('path').datum(f.v).attr('d', line).attr('fill', 'none')
+    .attr('stroke', C.hi).attr('stroke-width', 2);
+}
+['before', 'after'].forEach(k => {
+  drawChart('#' + k + '-normal', PALETTE[k], '일반');
+  drawChart('#' + k + '-sim', simAll(PALETTE[k]), '녹색맹 시뮬레이션');
+});
+</script>
+</body>
+</html>
+
+</body></html>

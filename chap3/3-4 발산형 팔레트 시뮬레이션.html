@@ -1,0 +1,142 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>3-4 발산형 팔레트 시뮬레이션</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7.8.5/dist/d3.min.js"></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); --bg: #fff; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #fff; } }
+  :root[data-theme="dark"] { --bg: #fff; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', 'Noto Sans KR', sans-serif; background: var(--bg); padding: 40px 20px; }
+  .container { max-width: 620px; margin: 0; }
+  .compare-wrap { display: flex; gap: 24px; flex-wrap: wrap; }
+  .panel { flex: 1 1 236px; min-width: 0; }
+  .panel-header { font-size: 13px; font-weight: 500; color: #363636; display: flex; align-items: center; gap: 8px;
+    padding-bottom: 8px; margin-bottom: 14px; border-bottom: 1px solid #ddd; }
+  .badge { font-size: 12px; font-weight: 700; border-radius: 4px; padding: 3px 10px; color: #ffffff;
+    letter-spacing: 0.03em; flex-shrink: 0; }
+  .badge-better { background: #37760a; }
+  .badge-worse  { background: #b8351b; }
+  .cond { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
+  .cond-name { font-size: 13px; color: #363636; }
+  .legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; line-height: 13px; color: #363636; }
+  .legend-item i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .sub { margin-bottom: 14px; }
+  .result { font-size: 13px; line-height: 17px; font-weight: 400; color: #363636; margin-top: 2px; }
+  .result strong { font-weight: 700; }
+  .source { font-size: 13px; line-height: 17px; color: #777777; margin-top: 18px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="compare-wrap">
+    <div class="panel">
+      <div class="panel-header"><span class="badge badge-worse">Before</span><span>빨강-초록 발산형 팔레트</span></div>
+      <div class="sub" id="before-normal"></div>
+      <div class="sub" id="before-sim"></div>
+      <p class="result"><strong>결과:</strong> 녹색맹 조건에서 빨강과 초록이 비슷한 올리브색이 되어, 기온이 오른 달과 내린 달을 구분하기 어렵습니다.</p>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="badge badge-better">After</span><span>빨강-파랑 발산형 팔레트</span></div>
+      <div class="sub" id="after-normal"></div>
+      <div class="sub" id="after-sim"></div>
+      <p class="result"><strong>결과:</strong> 같은 조건에서도 따뜻해진 달과 추워진 달이 서로 다른 색으로 유지됩니다.</p>
+    </div>
+  </div>
+  <p class="source">서울과 부산의 2025년 월평균 기온에서 2024년 같은 달 값을 뺀 차이(°C). 출처: 기상청 기상자료개방포털(종관기상관측 일평균기온을 월별로 평균). 각 패널의 아래 차트는 녹색맹(deuteranopia) 조건을 Machado et al.(2009) 모델로 시뮬레이션한 모습입니다.</p>
+</div>
+<script>
+const FONT = "'Pretendard','Noto Sans KR',sans-serif";
+// 녹색맹(deuteranopia, severity 1.0) 시뮬레이션: Machado, Oliveira & Fernandes (2009)
+// 선형 RGB에서 행렬을 적용한 뒤 sRGB로 되돌림 (colorspacious 구현과 값 일치 확인)
+const M = [[0.367322, 0.860646, -0.227968],
+           [0.280085, 0.672501,  0.047413],
+           [-0.011820, 0.042940, 0.968881]];
+const toLin = c => { c /= 255; return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+const toSrgb = c => { c = Math.min(1, Math.max(0, c));
+  return Math.round(255 * (c <= 0.0031308 ? 12.92 * c : 1.055 * Math.pow(c, 1 / 2.4) - 0.055)); };
+function simulate(hex) {
+  const c = d3.rgb(hex), lin = [c.r, c.g, c.b].map(toLin);
+  const out = M.map(row => toSrgb(row[0] * lin[0] + row[1] * lin[1] + row[2] * lin[2]));
+  return d3.rgb(...out).formatHex();
+}
+const simAll = C => Object.fromEntries(Object.entries(C).map(([k, v]) => [k, simulate(v)]));
+function condHeader(sel, name, items) {
+  const h = d3.select(sel).append('div').attr('class', 'cond');
+  h.append('span').attr('class', 'cond-name').text(name);
+  items.forEach(([color, label]) => {
+    const it = h.append('span').attr('class', 'legend-item');
+    it.append('i').style('background', color);
+    it.node().append(label);
+  });
+}
+
+
+const W = 298, H = 96;
+const margin = { top: 4, right: 4, bottom: 22, left: 40 };
+const iW = W - margin.left - margin.right, iH = H - margin.top - margin.bottom;
+
+// 2025년 월평균 기온 - 2024년 월평균 기온(°C). 기상청 ASOS 서울 108, 부산 159
+const MONTHS = d3.range(1, 13);
+const DATA = {
+  '서울': [0.1, -5.0, 1.0, -2.9, -0.7, -0.6, 2.2, -1.1, -2.1, -0.2, -0.7, 0.4],
+  '부산': [-1.1, -4.5, 0.2, -1.9, -1.2, -0.3, 1.8, -0.7, -1.1, 0.1, -0.8, 1.3]
+};
+const CITIES = ['서울', '부산'];
+const MID = '#f2f2f2';
+// Before: 초록(추워짐) - 회색 - 빨강(따뜻해짐), After: 파랑 - 회색 - 빨강 (tokens.json base)
+const ENDS = { before: ['#3b8601', '#cc2b0c'], after: ['#0b66d6', '#cc2b0c'] };
+
+const x = d3.scaleBand().domain(MONTHS).range([0, iW]).padding(0.06);
+const y = d3.scaleBand().domain(CITIES).range([0, iH]).padding(0.08);
+
+function scaleFor(key, simulated) {
+  const [lo, hi] = ENDS[key];
+  const s = d3.scaleLinear().domain([-5, 0, 5]).range([lo, MID, hi]).interpolate(d3.interpolateLab).clamp(true);
+  return simulated ? (v => simulate(d3.color(s(v)).formatHex())) : s;
+}
+
+function draw(sel, key, simulated) {
+  const color = scaleFor(key, simulated);
+  // 조건 이름 + 범례(색 띠)
+  const h = d3.select(sel).append('div').attr('class', 'cond');
+  h.append('span').attr('class', 'cond-name').text(simulated ? '녹색맹 시뮬레이션' : '원본');
+  const lw = 90, lsvg = h.append('svg').attr('width', lw + 70).attr('height', 12);
+  const stops = d3.range(0, 1.0001, 0.05);
+  const gid = 'grad-' + key + (simulated ? '-s' : '');
+  const grad = lsvg.append('defs').append('linearGradient').attr('id', gid);
+  stops.forEach(t => grad.append('stop').attr('offset', t).attr('stop-color', color(-5 + 10 * t)));
+  lsvg.append('text').attr('x', 0).attr('y', 10).style('font-size', '12px').style('fill', '#363636').style('font-family', FONT).text('추워짐');
+  lsvg.append('rect').attr('x', 38).attr('y', 2).attr('width', lw - 30).attr('height', 8).attr('fill', `url(#${gid})`);
+  lsvg.append('text').attr('x', 38 + lw - 30 + 4).attr('y', 10).style('font-size', '12px').style('fill', '#363636').style('font-family', FONT).text('따뜻해짐');
+
+  const svg = d3.select(sel).append('svg').attr('width', W).attr('height', H);
+  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+  CITIES.forEach(c => DATA[c].forEach((v, i) => {
+    g.append('rect').attr('x', x(MONTHS[i])).attr('y', y(c))
+      .attr('width', x.bandwidth()).attr('height', y.bandwidth()).attr('fill', color(v));
+  }));
+  g.selectAll('text.city').data(CITIES).join('text')
+    .attr('x', -8).attr('y', d => y(d) + y.bandwidth() / 2).attr('dy', '0.34em').attr('text-anchor', 'end')
+    .style('font-size', '13px').style('fill', '#363636').style('font-family', FONT).text(d => d);
+  g.append('g').attr('transform', `translate(0,${iH})`)
+    .call(d3.axisBottom(x).tickValues([1, 6, 12]).tickSize(0).tickPadding(8).tickFormat(d => d + '월'))
+    .call(a => a.select('.domain').remove())
+    .selectAll('text').style('font-size', '13px').style('fill', '#999999').style('font-family', FONT);
+}
+['before', 'after'].forEach(k => {
+  draw('#' + k + '-normal', k, false);
+  draw('#' + k + '-sim', k, true);
+});
+</script>
+</body>
+</html>
+
+</body></html>
