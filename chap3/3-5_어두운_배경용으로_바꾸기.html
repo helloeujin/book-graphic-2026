@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>3-5 어두운 배경용으로 바꾸기</title>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet"><link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#fff;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#fff}}:root[data-theme="dark"]{--bg:#fff}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Pretendard','Noto Sans KR',sans-serif;background:var(--bg);padding:40px 20px;color:#363636;word-break:keep-all}
+.container{max-width:620px;margin:0}
+.head,.row{display:grid;grid-template-columns:92px 1fr 1fr 1fr;gap:6px}
+.head div{font-size:13px;font-weight:500;border-bottom:1px solid #ddd;padding-bottom:8px;margin-bottom:8px}
+.row{margin-bottom:6px}
+.rn{font-size:13px;font-weight:500;padding-top:10px}
+.rn span{display:block;font-size:12px;color:#777;font-weight:400;margin-top:2px}
+.cell{padding:10px 10px 8px;border:1px solid #e5e5e5}
+.cell i{display:block;height:16px;border-radius:2px}
+.cell span{display:block;font-size:12px;margin-top:6px}
+.cell em{font-style:normal;font-weight:700;margin-left:4px;color:inherit}
+.cell b{display:block;font-weight:400;font-size:11px;margin-top:1px}
+.result{font-size:13px;line-height:18px;margin-top:12px}
+.result strong{font-weight:700}
+.footnote{font-size:13px;line-height:17px;color:#777;margin-top:10px}
+</style></head><body><div class="container">
+<div class="head"><div></div><div>흰 배경</div><div>어두운 배경에 그대로</div><div>어두운 배경용으로 조정</div></div>
+<div class="row"><div class="rn">맥락 데이터<span>회색</span></div><div class="cell" style="background:#FFFFFF"><i style="background:#C8C8C8"></i><span style="color:#777777">1.7:1 </span><b style="color:#777777">#C8C8C8</b></div><div class="cell" style="background:#1E1F23"><i style="background:#C8C8C8"></i><span style="color:#A3A6AD">9.8:1 <em>지나치게 튐</em></span><b style="color:#A3A6AD">#C8C8C8</b></div><div class="cell" style="background:#1E1F23"><i style="background:#434343"></i><span style="color:#A3A6AD">1.7:1 </span><b style="color:#A3A6AD">#434343</b></div></div><div class="row"><div class="rn">발산형 기준값<span>밝은 회색</span></div><div class="cell" style="background:#FFFFFF"><i style="background:#F7F7F7"></i><span style="color:#777777">1.1:1 </span><b style="color:#777777">#F7F7F7</b></div><div class="cell" style="background:#1E1F23"><i style="background:#F7F7F7"></i><span style="color:#A3A6AD">15.4:1 <em>가장 튐</em></span><b style="color:#A3A6AD">#F7F7F7</b></div><div class="cell" style="background:#1E1F23"><i style="background:#3A3B40"></i><span style="color:#A3A6AD">1.5:1 </span><b style="color:#A3A6AD">#3A3B40</b></div></div><div class="row"><div class="rn">범주형<span>보라</span></div><div class="cell" style="background:#FFFFFF"><i style="background:#824cd5"></i><span style="color:#777777">5.3:1 </span><b style="color:#777777">#824CD5</b></div><div class="cell" style="background:#1E1F23"><i style="background:#824cd5"></i><span style="color:#A3A6AD">3.1:1 <em>약해짐</em></span><b style="color:#A3A6AD">#824CD5</b></div><div class="cell" style="background:#1E1F23"><i style="background:#A879FD"></i><span style="color:#A3A6AD">5.3:1 </span><b style="color:#A3A6AD">#A879FD</b></div></div><div class="row"><div class="rn">범주형<span>빨강</span></div><div class="cell" style="background:#FFFFFF"><i style="background:#cc2b0c"></i><span style="color:#777777">5.4:1 </span><b style="color:#777777">#CC2B0C</b></div><div class="cell" style="background:#1E1F23"><i style="background:#cc2b0c"></i><span style="color:#A3A6AD">3.1:1 <em>약해짐</em></span><b style="color:#A3A6AD">#CC2B0C</b></div><div class="cell" style="background:#1E1F23"><i style="background:#FD5D41"></i><span style="color:#A3A6AD">5.3:1 </span><b style="color:#A3A6AD">#FD5D41</b></div></div><div class="row"><div class="rn">범주형<span>노랑</span></div><div class="cell" style="background:#FFFFFF"><i style="background:#eaba04"></i><span style="color:#777777">1.8:1 </span><b style="color:#777777">#EABA04</b></div><div class="cell" style="background:#1E1F23"><i style="background:#eaba04"></i><span style="color:#A3A6AD">9.0:1 </span><b style="color:#A3A6AD">#EABA04</b></div><div class="cell" style="background:#1E1F23"><i style="background:#eaba04"></i><span style="color:#A3A6AD">9.0:1 <em>그대로 사용</em></span><b style="color:#A3A6AD">#EABA04</b></div></div>
+<p class="result">숫자는 배경과의 대비입니다. 밝은 배경에서 약했던 밝은 색은 어두운 배경에서 <strong>강해지고</strong>, 진했던 색은 <strong>약해집니다.</strong> 색상은 유지한 채 밝기만 조정해 원래의 대비에 가깝게 맞춥니다.</p>
+<p class="footnote">※ 어두운 배경은 #1E1F23 기준입니다.</p>
+</div></body></html>

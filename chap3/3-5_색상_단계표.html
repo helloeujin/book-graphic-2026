@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>3-5 색상 단계표</title>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet"><link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#fff;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#fff}}:root[data-theme="dark"]{--bg:#fff}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Pretendard','Noto Sans KR',sans-serif;background:var(--bg);padding:40px 20px;color:#363636;word-break:keep-all}
+.container{max-width:620px;margin:0}
+.group-header{font-size:13px;font-weight:500;border-bottom:1px solid #ddd;padding-bottom:8px;margin-bottom:15px}
+.scale{margin-bottom:20px}
+.sn{font-size:13px;font-weight:500;margin-bottom:6px}
+.cells{display:grid;grid-template-columns:repeat(9,1fr)}
+.c{padding:10px 4px 8px;text-align:center;min-height:62px}
+.c b{display:block;font-size:13px;font-weight:700}
+.c span{display:block;font-size:10px;margin-top:4px;letter-spacing:-.02em;opacity:.85}
+.footnote{font-size:13px;line-height:17px;color:#777;margin-top:4px}
+</style></head><body><div class="container">
+<div class="group-header">색상 단계표</div>
+<div class="scale"><p class="sn">파랑 blue</p><div class="cells"><div class="c" style="background:#E0F0FF;color:#363636"><b>100</b><span>#E0F0FF</span></div><div class="c" style="background:#B7D5FF;color:#363636"><b>200</b><span>#B7D5FF</span></div><div class="c" style="background:#8BB9FD;color:#363636"><b>300</b><span>#8BB9FD</span></div><div class="c" style="background:#5D9BF7;color:#363636"><b>400</b><span>#5D9BF7</span></div><div class="c" style="background:#327BE4;color:#fff"><b>500</b><span>#327BE4</span></div><div class="c" style="background:#2163BF;color:#fff"><b>600</b><span>#2163BF</span></div><div class="c" style="background:#144C9B;color:#fff"><b>700</b><span>#144C9B</span></div><div class="c" style="background:#123B75;color:#fff"><b>800</b><span>#123B75</span></div><div class="c" style="background:#0F2A52;color:#fff"><b>900</b><span>#0F2A52</span></div></div></div><div class="scale"><p class="sn">회색 gray</p><div class="cells"><div class="c" style="background:#E5E5E5;color:#363636"><b>100</b><span>#E5E5E5</span></div><div class="c" style="background:#D6D6D6;color:#363636"><b>200</b><span>#D6D6D6</span></div><div class="c" style="background:#C8C8C8;color:#363636"><b>300</b><span>#C8C8C8</span></div><div class="c" style="background:#A9A9A9;color:#363636"><b>400</b><span>#A9A9A9</span></div><div class="c" style="background:#8F8F8F;color:#fff"><b>500</b><span>#8F8F8F</span></div><div class="c" style="background:#777777;color:#fff"><b>600</b><span>#777777</span></div><div class="c" style="background:#5E5E5E;color:#fff"><b>700</b><span>#5E5E5E</span></div><div class="c" style="background:#474747;color:#fff"><b>800</b><span>#474747</span></div><div class="c" style="background:#363636;color:#fff"><b>900</b><span>#363636</span></div></div></div>
+<p class="footnote">※ 번호가 클수록 진한 색입니다. blue-500은 강조색(#327BE4)입니다.</p>
+</div></body></html>

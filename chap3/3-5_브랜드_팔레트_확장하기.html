@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>3-5 브랜드 색을 데이터 팔레트에 넣기</title>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet"><link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#fff;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#fff}}:root[data-theme="dark"]{--bg:#fff}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Pretendard','Noto Sans KR',sans-serif;background:var(--bg);padding:40px 20px;color:#363636;word-break:keep-all}
+.container{max-width:620px;margin:0}
+.group-header{font-size:13px;font-weight:500;border-bottom:1px solid #ddd;padding-bottom:8px;margin-bottom:15px}
+.group-header span{color:#777;font-weight:400;font-size:12px;margin-left:5px}
+.brand{display:flex;gap:12px;margin-bottom:30px}
+.brand div{width:120px}.brand i{display:block;height:28px}
+.brand span{display:block;font-size:12px;color:#777;margin-top:5px;text-align:center}
+.brand b{display:block;font-weight:400;color:#999;font-size:11px}
+.prow{display:grid;grid-template-columns:96px 1fr;column-gap:16px;padding:14px 0;border-bottom:1px solid #f0f0f0}
+.prow:last-child{border-bottom:none}
+.pname{font-size:13px;font-weight:500}
+.pname span{display:block;color:#777;font-weight:400;font-size:12px;margin-top:2px}
+.pbody{display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start}
+.pvis{flex:0 0 228px}
+.pres{flex:1 1 200px}
+.pres p{font-size:13px;line-height:18px;margin-top:8px}
+.badge{display:inline-block;font-size:12px;font-weight:700;border-radius:4px;padding:3px 10px;margin-right:6px}
+.badge.keep{background:#fff;color:#363636;box-shadow:inset 0 0 0 1px #bbb}
+.badge.adj{background:#363636;color:#fff}
+.badge.add{background:#f0f0f0;color:#363636}
+.mini-l{font-size:12px;color:#777;margin-bottom:4px}
+.strip{display:flex}
+.sc{flex:1;min-width:0}.sc i{display:block}
+.sc span{display:block;font-size:11px;color:#777;text-align:center;margin-top:4px;min-height:14px;white-space:nowrap}
+.footnote{font-size:13px;line-height:17px;color:#777;margin-top:14px}
+</style></head><body><div class="container">
+<section><div class="group-header">브랜드 색 <span>Brand colors</span></div>
+<div class="brand"><div><i style="background:#0A5CF0"></i><span>브랜드 파랑<b>#0A5CF0</b></span></div><div><i style="background:#E8792B"></i><span>브랜드 주황<b>#E8792B</b></span></div></div></section>
+<section><div class="group-header">역할에 따라 그대로 쓰거나 조정하기</div>
+<div class="prow"><div class="pname">강조색<span>Highlight</span></div><div class="pbody"><div class="pvis"><svg viewBox="0 0 228 104" width="228" height="104"><line x1="0" x2="228" y1="100.5" y2="100.5" stroke="#999"/><rect x="8" y="55" width="30" height="45" fill="#B9C0C7"/><rect x="52" y="34" width="30" height="66" fill="#B9C0C7"/><rect x="96" y="67" width="30" height="33" fill="#B9C0C7"/><rect x="140" y="16" width="30" height="84" fill="#0A5CF0"/><rect x="184" y="46" width="30" height="54" fill="#B9C0C7"/></svg></div><div class="pres"><span class="badge keep">그대로 사용</span><p>회색 막대 사이에서 막대 하나만 강조한다면, 채도가 높은 브랜드 색도 <strong>그대로</strong> 쓸 수 있습니다. 주변 회색과 충분히 구분되어 시선을 모읍니다.</p></div></div></div><div class="prow"><div class="pname">범주형<span>Categorical</span></div><div class="pbody"><div class="pvis"><p class="mini-l">브랜드 색 그대로</p><div class="strip" style="gap:2px"><div class="sc"><i style="background:#0A5CF0;height:22px"></i><span>브랜드</span></div><div class="sc"><i style="background:#E8792B;height:22px"></i><span>브랜드</span></div><div class="sc"><i style="background:#2E9C83;height:22px"></i><span></span></div><div class="sc"><i style="background:#8E6CCF;height:22px"></i><span></span></div></div><p class="mini-l" style="margin-top:12px">파랑만 조정</p><div class="strip" style="gap:2px"><div class="sc"><i style="background:#3E75DD;height:22px"></i><span>조정</span></div><div class="sc"><i style="background:#E8792B;height:22px"></i><span>브랜드</span></div><div class="sc"><i style="background:#2E9C83;height:22px"></i><span></span></div><div class="sc"><i style="background:#8E6CCF;height:22px"></i><span></span></div></div></div><div class="pres"><span class="badge adj">조정해서 사용</span><p>다른 색과 함께 쓰면 브랜드 파랑이 지나치게 두드러져 <strong>채도를 낮췄습니다</strong>. 주황은 다른 색과 구분되면서 균형을 이루므로 그대로 씁니다.</p></div></div></div><div class="prow"><div class="pname">순차형<span>Sequential</span></div><div class="pbody"><div class="pvis"><div class="strip" style="gap:0px"><div class="sc"><i style="background:#a5c3f6;height:22px"></i><span></span></div><div class="sc"><i style="background:#7690f3;height:22px"></i><span></span></div><div class="sc"><i style="background:#3a61df;height:22px"></i><span>조정한 브랜드 파랑</span></div><div class="sc"><i style="background:#083ba3;height:22px"></i><span></span></div><div class="sc"><i style="background:#001a5a;height:22px"></i><span></span></div></div></div><div class="pres"><span class="badge adj">조정해서 포함</span><span class="badge add">단계 추가</span><p>브랜드 파랑을 단계 사이의 명도 변화에 맞게 조정해 <strong>가운데 단계</strong>로 두고, 앞뒤로 더 밝은 단계와 더 어두운 단계를 추가합니다.</p></div></div></div></section>
+<p class="footnote">※ 가상의 브랜드 색으로 만든 예시입니다.</p>
+</div></body></html>

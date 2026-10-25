@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>3-5 역할 연결표</title>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet"><link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#fff;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#fff}}:root[data-theme="dark"]{--bg:#fff}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Pretendard','Noto Sans KR',sans-serif;background:var(--bg);padding:40px 20px;color:#363636;word-break:keep-all}
+.container{max-width:620px;margin:0}
+.th,.tr{display:grid;grid-template-columns:150px 1fr 170px;column-gap:16px;align-items:center}
+.th{font-size:12px;color:#777;border-bottom:1px solid #ddd;padding-bottom:8px}
+.tr{padding:13px 0;border-bottom:1px solid #eee}
+.role{font-size:13px;font-weight:500}
+.role span{display:block;font-size:12px;color:#777;font-weight:400;margin-top:2px}
+.use{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center}
+.sw{display:inline-flex;align-items:center;gap:7px}
+.sw i{width:28px;height:18px;border-radius:2px;display:block}
+code{font-family:'Pretendard','Noto Sans KR',sans-serif;font-size:12px;color:#363636}
+.strip{display:flex;width:150px}.strip i{flex:1;height:18px;display:block}
+.sc{width:100%;color:#777}
+.note{font-size:12px;line-height:16px;color:#363636}
+.footnote{font-size:13px;line-height:17px;color:#777;margin-top:12px}
+</style></head><body><div class="container">
+<div class="th"><div>역할</div><div>사용하는 단계</div><div>주의 사항</div></div>
+<div class="tr"><div class="role">강조색<span>Highlight</span></div><div class="use"><span class="sw"><i style="background:#327BE4"></i><code>blue-500</code></span></div><div class="note">한 차트에 한두 곳만 사용</div></div><div class="tr"><div class="role">맥락 데이터<span>Context</span></div><div class="use"><span class="sw"><i style="background:#C8C8C8"></i><code>gray-300</code></span></div><div class="note">강조색과 경쟁하지 않게</div></div><div class="tr"><div class="role">격자선·보조 텍스트<span>Grid · Text</span></div><div class="use"><span class="sw"><i style="background:#E5E5E5"></i><code>gray-100</code></span><span class="sw"><i style="background:#777777"></i><code>gray-600</code></span></div><div class="note">데이터보다 눈에 띄지 않게</div></div><div class="tr"><div class="role">순차형 (5단계)<span>Sequential</span></div><div class="use"><span class="strip"><i style="background:#E0F0FF"></i><i style="background:#8BB9FD"></i><i style="background:#327BE4"></i><i style="background:#144C9B"></i><i style="background:#0F2A52"></i></span><code class="sc">blue-100 · 300 · 500 · 700 · 900</code></div><div class="note">큰 값을 진한 색으로</div></div><div class="tr"><div class="role">데이터 없음<span>Missing</span></div><div class="use"><span class="sw"><i style="background:repeating-linear-gradient(45deg,#D6D6D6 0 4px,#9a9a9a 4px 5px)"></i><code>gray-200 + 빗금</code></span></div><div class="note">값이 0인 경우와 구분</div></div>
+<p class="footnote">※ 단계 번호는 앞의 색상 단계표를 기준으로 합니다.</p>
+</div></body></html>
