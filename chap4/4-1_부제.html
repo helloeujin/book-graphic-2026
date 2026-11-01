@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>4-1 부제로 맥락 보완하기</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7.8.5/dist/d3.min.js"></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); --bg: #fff; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #fff; } }
+  :root[data-theme="dark"] { --bg: #fff; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', 'Noto Sans KR', sans-serif; background: var(--bg); padding: 40px 20px; word-break: keep-all; }
+  .container { max-width: 620px; margin: 0; }
+  .layout { display: grid; grid-template-columns: 298px minmax(0, 1fr); column-gap: 24px; align-items: baseline; }
+  .chart-title { font-size: 15px; line-height: 21px; font-weight: 700; color: #1a1a1a; }
+  .chart-sub { font-size: 12px; line-height: 16px; color: #777777; margin-top: 2px; }
+  .tag { font-size: 12px; line-height: 16px; color: #999999; }
+  .tag b { font-weight: 700; color: #777777; margin-right: 4px; }
+  .chart-sub { margin-bottom: 8px; }
+  .source { font-size: 13px; line-height: 17px; color: #777777; margin-top: 18px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="layout">
+    <p class="chart-title">서울의 평균 기온은 8월에 가장 높았다</p>
+    <span class="tag"><b>제목</b>무엇을 말하는지</span>
+    <p class="chart-sub">1991~2020년 서울의 월평균 기온(평년값), 단위: °C</p>
+    <span class="tag"><b>부제</b>무엇을 근거로 말하는지</span>
+    <div id="chart"></div>
+    <span></span>
+  </div>
+  <p class="source">출처: 기상청.</p>
+</div>
+<script>
+const FONT = "'Pretendard','Noto Sans KR',sans-serif";
+const W = 298, H = 160;
+const margin = { top: 18, right: 4, bottom: 24, left: 30 };
+const iW = W - margin.left - margin.right, iH = H - margin.top - margin.bottom;
+
+// 기상청 1991~2020 평년값, 서울 월평균 기온(°C)
+const MONTHS = d3.range(1, 13);
+const TEMPS = [-1.9, 0.7, 6.1, 12.6, 18.2, 22.7, 25.3, 26.1, 21.6, 15.0, 7.5, 0.2];
+const PEAK = 8;
+// 회색은 3-3, 3-4 예시와 같은 #bbbbbb, 강조색은 tokens.json 파랑
+const BLUE = '#0b66d6', GRAY = '#bbbbbb';
+
+const svg = d3.select('#chart').append('svg').attr('width', W).attr('height', H);
+const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+const x = d3.scaleBand().domain(MONTHS).range([0, iW]).padding(0.22);
+const y = d3.scaleLinear().domain([-5, 30]).range([iH, 0]);
+const yTicks = [0, 10, 20, 30];
+
+g.selectAll('line.gy').data(yTicks.filter(d => d !== 0)).join('line')
+  .attr('x1', 0).attr('x2', iW).attr('y1', d => y(d)).attr('y2', d => y(d))
+  .style('stroke', '#aaaaaa').style('stroke-dasharray', '2').style('stroke-opacity', 0.4);
+g.append('g').call(d3.axisLeft(y).tickValues(yTicks).tickSize(0).tickPadding(8))
+  .call(a => a.select('.domain').remove())
+  .selectAll('text').style('font-size', '13px').style('fill', '#999999').style('font-family', FONT);
+g.selectAll('rect.bar').data(TEMPS).join('rect')
+  .attr('x', (d, i) => x(MONTHS[i]))
+  .attr('y', d => y(Math.max(0, d)))
+  .attr('width', x.bandwidth())
+  .attr('height', d => Math.abs(y(d) - y(0)))
+  .attr('fill', (d, i) => MONTHS[i] === PEAK ? BLUE : GRAY);
+g.append('line').attr('x1', 0).attr('x2', iW).attr('y1', y(0)).attr('y2', y(0))
+  .style('stroke', '#777777').style('stroke-width', 1);
+g.append('g').attr('transform', `translate(0,${iH})`)
+  .call(d3.axisBottom(x).tickValues([1, 4, 8, 12]).tickSize(0).tickPadding(8).tickFormat(d => d + '월'))
+  .call(a => a.select('.domain').remove())
+  .selectAll('text').style('font-size', '13px').style('fill', '#999999').style('font-family', FONT);
+
+const v = TEMPS[PEAK - 1];
+g.append('text')
+  .attr('x', x(PEAK) + x.bandwidth() / 2).attr('y', y(v) - 6).attr('text-anchor', 'middle')
+  .style('font-size', '13px').style('font-weight', 700).style('fill', '#363636').style('font-family', FONT)
+  .style('paint-order', 'stroke').style('stroke', '#ffffff').style('stroke-width', 4)
+  .text(v.toFixed(1) + '°C');
+</script>
+</body>
+</html>

@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>4-1 제목 다듬기</title>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); --bg: #fff; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #fff; } }
+  :root[data-theme="dark"] { --bg: #fff; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', 'Noto Sans KR', sans-serif; background: var(--bg); padding: 40px 20px; word-break: keep-all; }
+  .container { max-width: 620px; margin: 0; }
+  .block + .block { margin-top: 32px; }
+  .panel-header { font-size: 13px; font-weight: 500; color: #363636; padding-bottom: 8px; margin-bottom: 6px; border-bottom: 1px solid #ddd; }
+
+  /* Don't | 화살표 | Do */
+  .grid { display: grid; grid-template-columns: minmax(0, 1fr) 24px minmax(0, 1.3fr); column-gap: 12px; align-items: center; }
+  .label { font-size: 12px; font-weight: 700; padding: 6px 0 2px; }
+  .worse { color: #b8351b; }
+  .better { color: #37760a; }
+  .t { font-size: 15px; line-height: 21px; font-weight: 700; padding: 8px 0; }
+  .before { color: #999999; }
+  .after { color: #1a1a1a; }
+  .arrow { color: #bbbbbb; font-size: 15px; text-align: center; }
+  .add { color: #0b66d6; }
+  .cut { color: #bbbbbb; text-decoration: line-through; }
+
+  .note { font-size: 13px; line-height: 17px; color: #777777; margin-top: 6px; }
+  .note .add { font-weight: 700; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="block">
+    <div class="panel-header">무엇에 관한 데이터인지 밝히기</div>
+    <div class="grid">
+      <span class="label worse">Don’t</span><span></span><span class="label better">Do</span>
+      <span class="t before">연도별 변화</span><span class="arrow">→</span>
+      <span class="t after"><span class="add">서울의</span> 연도별 <span class="add">1인 가구 비율</span></span>
+      <span class="t before">지역별 비교</span><span class="arrow">→</span>
+      <span class="t after"><span class="add">시도별 대중교통 이용률</span></span>
+      <span class="t before">매출 현황</span><span class="arrow">→</span>
+      <span class="t after"><span class="add">연도별 온라인</span> 매출</span>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="panel-header">차트를 보면 알 수 있는 말 빼기</div>
+    <div class="grid">
+      <span class="label worse">Don’t</span><span></span><span class="label better">Do</span>
+      <span class="t after">연도별 온라인 매출 <span class="cut">추이 그래프</span></span><span class="arrow">→</span>
+      <span class="t after">연도별 온라인 매출</span>
+    </div>
+    <p class="note">‘그래프’는 차트를 보면 알 수 있고, ‘추이’는 ‘연도별’이 이미 말해줍니다.</p>
+  </div>
+
+</div>
+</body>
+</html>
