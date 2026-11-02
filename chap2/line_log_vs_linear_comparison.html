@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>선형 vs 로그 스케일 비교</title>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family:'Pretendard','Noto Sans KR',sans-serif;
+      background:#fff;
+      padding:40px 20px;
+    }
+    .panels {
+      display: flex;
+      gap: 24px;
+      align-items: flex-start;
+    }
+    .panel {
+      padding: 16px 16px 28px 16px;
+      display: inline-block;
+      overflow: visible;
+    }
+    .panel-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: #363636;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding-bottom: 8px;
+      margin-bottom: 22px;
+      border-bottom: 1px solid #ddd;
+    }
+    .badge {
+      font-size: 12px;
+      font-weight: 700;
+      border-radius: 4px;
+      padding: 3px 10px;
+      color: #fff;
+      letter-spacing: 0.03em;
+      white-space: nowrap;
+    }
+    .badge-worse  { background: #b8351b; }
+    .badge-better { background: #37760a; }
+    .source {
+      font-size: 13px;
+      line-height: 17px;
+      color: #777;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+<div class="panels">
+
+  <div class="panel">
+    <p class="panel-label">선형 스케일</p>
+    <div id="chart-linear"></div>
+    <p class="source">예시 데이터 (누적 확진자 수)</p>
+  </div>
+
+  <div class="panel">
+    <p class="panel-label">로그 스케일</p>
+    <div id="chart-log"></div>
+    <p class="source">예시 데이터 (누적 확진자 수)</p>
+  </div>
+
+</div>
+<script>
+const RED  = '#6565FF';   // 이탈리아
+const GRAY = '#888888';   // 미국
+const FONT = "Pretendard,'Noto Sans KR',sans-serif";
+
+const parseDate = d3.timeParse('%Y-%m-%d');
+
+const raw = [
+  {date:'2020-02-18',italy:3,     us:15},
+  {date:'2020-02-19',italy:3,     us:15},
+  {date:'2020-02-20',italy:4,     us:15},
+  {date:'2020-02-21',italy:20,    us:35},
+  {date:'2020-02-22',italy:62,    us:35},
+  {date:'2020-02-23',italy:155,   us:35},
+  {date:'2020-02-24',italy:229,   us:54},
+  {date:'2020-02-25',italy:322,   us:57},
+  {date:'2020-02-26',italy:453,   us:60},
+  {date:'2020-02-27',italy:655,   us:60},
+  {date:'2020-02-28',italy:888,   us:65},
+  {date:'2020-02-29',italy:1128,  us:75},
+  {date:'2020-03-01',italy:1694,  us:80},
+  {date:'2020-03-02',italy:2036,  us:110},
+  {date:'2020-03-03',italy:2502,  us:130},
+  {date:'2020-03-04',italy:3089,  us:160},
+  {date:'2020-03-05',italy:3858,  us:220},
+  {date:'2020-03-06',italy:4636,  us:330},
+  {date:'2020-03-07',italy:5883,  us:450},
+  {date:'2020-03-08',italy:7375,  us:550},
+  {date:'2020-03-09',italy:9172,  us:730},
+  {date:'2020-03-10',italy:10149, us:1000},
+  {date:'2020-03-11',italy:12462, us:1300},
+  {date:'2020-03-12',italy:15113, us:1700},
+  {date:'2020-03-13',italy:17660, us:2200},
+  {date:'2020-03-14',italy:21157, us:3000},
+  {date:'2020-03-15',italy:24747, us:4000},
+  {date:'2020-03-16',italy:27980, us:5000},
+  {date:'2020-03-17',italy:31506, us:7000},
+  {date:'2020-03-18',italy:35713, us:10000},
+  {date:'2020-03-19',italy:41035, us:14000},
+].map(d => ({ ...d, date: parseDate(d.date) }));
+
+const series = [
+  { name: '이탈리아', key: 'italy', color: RED  },
+  { name: '미국',     key: 'us',    color: GRAY }
+];
+
+const W = 236, H = 200;
+const M = { top: 6, right: 6, bottom: 30, left: 54 };
+const iW = W - M.left - M.right;
+const iH = H - M.top  - M.bottom;
+
+const commaFmt = d3.format(',');
+
+function drawChart(containerId, scaleType, yDomain, yTicks) {
+  const svg = d3.select(containerId).append('svg')
+    .attr('width', W).attr('height', H)
+    .style('overflow', 'visible');
+
+  const g = svg.append('g').attr('transform', `translate(${M.left},${M.top})`);
+
+  const x = d3.scaleTime()
+    .domain(d3.extent(raw, d => d.date))
+    .range([0, iW]);
+
+  const y = scaleType === 'log'
+    ? d3.scaleLog().domain(yDomain).range([iH, 0]).clamp(true)
+    : d3.scaleLinear().domain(yDomain).range([iH, 0]);
+
+  const topTick = yTicks[yTicks.length - 1];
+
+  // 그리드
+  g.append('g').selectAll('line.grid').data(yTicks).join('line')
+    .attr('x1', d => d === topTick ? 16 : 0).attr('x2', iW)
+    .attr('y1', d => y(d)).attr('y2', d => y(d))
+    .style('stroke', d => d === 0 ? '#363636' : '#aaaaaa')
+    .style('stroke-dasharray', d => d === 0 ? '0' : '2')
+    .style('stroke-opacity', 0.4);
+
+  // Y축
+  g.append('g')
+    .call(
+      d3.axisLeft(y)
+        .tickValues(yTicks)
+        .tickSize(0)
+        .tickPadding(6)
+        .tickFormat(d => commaFmt(d))
+    )
+    .call(a => a.select('.domain').remove())
+    .selectAll('text')
+      .style('font-size', '12px')
+      .style('fill', '#999999')
+      .style('font-family', FONT)
+      .style('text-anchor', 'end');
+
+  // 맨 위 tick에 "명" 별도 배치
+  g.append('text')
+    .attr('x', -6).attr('y', y(topTick))
+    .attr('dy', '0.32em').attr('dx', 2)
+    .style('text-anchor', 'start')
+    .style('font-size', '12px')
+    .style('fill', '#999999')
+    .style('font-family', FONT)
+    .text('명');
+
+  const monthAbbr = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const xTickDates = ['2020-02-18','2020-03-01','2020-03-19'].map(parseDate);
+  g.append('g')
+    .attr('transform', `translate(0,${iH})`)
+    .call(
+      d3.axisBottom(x)
+        .tickValues(xTickDates)
+        .tickSize(4)
+        .tickPadding(6)
+        .tickFormat(d => `${d.getMonth()+1}월 ${d.getDate()}일`)
+    )
+    .call(a => a.select('.domain').remove())
+    .selectAll('text')
+      .style('font-size', '12px')
+      .style('fill', '#999999')
+      .style('font-family', FONT);
+
+  g.selectAll('.tick line').style('stroke', '#999999');
+
+  // 선
+  series.forEach(s => {
+    const lineData = raw.filter(d => scaleType === 'log' ? d[s.key] > 0 : true);
+
+    const line = d3.line()
+      .x(d => x(d.date))
+      .y(d => y(d[s.key]))
+      .curve(d3.curveMonotoneX);
+
+    const path = g.append('path')
+      .datum(lineData)
+      .attr('fill', 'none')
+      .attr('stroke', s.color)
+      .attr('stroke-width', 2)
+      .attr('d', line);
+
+    const len = path.node().getTotalLength();
+    path
+      .attr('stroke-dasharray', `${len} ${len}`)
+      .attr('stroke-dashoffset', len)
+      .transition().duration(800).ease(d3.easeCubicInOut)
+      .attr('stroke-dashoffset', 0);
+  });
+
+  // 끝 레이블 (충돌 방지 MIN_GAP 14px)
+  const MIN_GAP = 14;
+  const endLabels = series
+    .map(s => ({
+      name:  s.name,
+      color: s.color,
+      y:     y(raw[raw.length - 1][s.key])
+    }))
+    .sort((a, b) => a.y - b.y);
+
+  for (let i = 1; i < endLabels.length; i++) {
+    if (endLabels[i].y - endLabels[i - 1].y < MIN_GAP)
+      endLabels[i].y = endLabels[i - 1].y + MIN_GAP;
+  }
+
+  endLabels.forEach(label => {
+    g.append('text')
+      .attr('x', iW + 6)
+      .attr('y', label.y)
+      .attr('dy', '0.32em')
+      .style('font-size', '12px')
+      .style('font-weight', '600')
+      .style('fill', label.color)
+      .style('font-family', FONT)
+      .text(label.name);
+  });
+}
+
+drawChart('#chart-linear', 'linear', [0, 45000],   [0, 15000, 30000, 45000]);
+drawChart('#chart-log',    'log',    [0.8, 100000], [1, 10, 100, 1000, 10000, 100000]);
+</script>
+</body>
+</html>

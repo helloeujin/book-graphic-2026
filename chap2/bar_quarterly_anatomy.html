@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>선 vs 막대 — 데이터 포인트가 적을 때</title>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family:'Pretendard','Noto Sans KR',sans-serif;
+      background:#fff;
+      padding:40px 20px;
+    }
+    .panels { display:flex; gap:24px; align-items:flex-start; }
+    .panel  { display:inline-block; }
+
+    .panel-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: #363636;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding-bottom: 8px;
+      margin-bottom: 22px;
+      border-bottom: 1px solid #ddd;
+    }
+    .badge {
+      font-size: 12px;
+      font-weight: 700;
+      border-radius: 4px;
+      padding: 3px 10px;
+      color: #fff;
+      letter-spacing: 0.03em;
+      white-space: nowrap;
+    }
+    .badge-worse  { background: #b8351b; }
+    .badge-better { background: #37760a; }
+
+    .source {
+      font-size: 13px;
+      line-height: 17px;
+      color: #777;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+<div class="panels">
+
+  <div class="panel">
+    <p class="panel-label">
+      <span class="badge badge-worse">Don't</span>
+      선 그래프
+    </p>
+    <div id="chart-line"></div>
+  </div>
+
+  <div class="panel">
+    <p class="panel-label">
+      <span class="badge badge-better">Do</span>
+      막대 그래프
+    </p>
+    <div id="chart-bar"></div>
+  </div>
+
+</div>
+<script>
+const data = [
+  { label: '1분기', value: 142 },
+  { label: '2분기', value: 168 },
+  { label: '3분기', value: 155 },
+  { label: '4분기', value: 189 },
+];
+
+const W = 236, H = 200;
+const M = { top: 6, right: 24, bottom: 30, left: 36 };
+const iW = W - M.left - M.right;
+const iH = H - M.top  - M.bottom;
+const FONT   = "Pretendard,'Noto Sans KR',sans-serif";
+const yTicksLine = [125, 150, 175, 200];
+const yTicksBar  = [0, 50, 100, 150, 200];
+
+function baseChart(containerId, yDomain, yTicks) {
+  const topTick = yTicks[yTicks.length - 1];
+  const svg = d3.select(containerId).append('svg')
+    .attr('width', W).attr('height', H);
+  const g = svg.append('g').attr('transform', `translate(${M.left},${M.top})`);
+
+  const y = d3.scaleLinear().domain(yDomain).range([iH, 0]);
+
+  // 그리드
+  g.selectAll('.grid').data(yTicks).join('line')
+    .attr('x1', 0).attr('x2', iW)
+    .attr('y1', d => y(d)).attr('y2', d => y(d))
+    .style('stroke', d => d === 0 ? '#363636' : '#aaaaaa')
+    .style('stroke-dasharray', d => d === 0 ? '0' : '2')
+    .style('stroke-opacity', 0.4);
+
+  // Y축
+  g.append('g')
+    .call(
+      d3.axisLeft(y)
+        .tickValues(yTicks)
+        .tickSize(0)
+        .tickPadding(6)
+        .tickFormat(d => d === topTick ? `${d}억` : `${d}`)
+    )
+    .call(a => a.select('.domain').remove())
+    .selectAll('text')
+      .style('font-size', '12px').style('fill', '#999999')
+      .style('font-family', FONT).style('text-anchor', 'end');
+
+  return { g, y };
+}
+
+// ── 선 그래프 ──────────────────────────────
+{
+  const x = d3.scalePoint()
+    .domain(data.map(d => d.label))
+    .range([0, iW]).padding(0.4);
+
+  const { g, y } = baseChart('#chart-line', [120, 200], yTicksLine);
+
+  // X축
+  g.append('g')
+    .attr('transform', `translate(0,${iH})`)
+    .call(d3.axisBottom(x).tickSize(0).tickPadding(8))
+    .call(a => a.select('.domain').remove())
+    .selectAll('text')
+      .style('font-size', '12px').style('fill', '#999999').style('font-family', FONT);
+
+  // 선
+  const line = d3.line().x(d => x(d.label)).y(d => y(d.value));
+  const path = g.append('path').datum(data)
+    .attr('fill', 'none').attr('stroke', '#838383').attr('stroke-width', 2)
+    .attr('d', line);
+  const len = path.node().getTotalLength();
+  path.attr('stroke-dasharray', `${len} ${len}`).attr('stroke-dashoffset', len)
+    .transition().duration(800).ease(d3.easeCubicInOut).attr('stroke-dashoffset', 0);
+
+  // 점
+  g.selectAll('.dot').data(data).join('circle')
+    .attr('cx', d => x(d.label)).attr('cy', d => y(d.value))
+    .attr('r', 4).attr('fill', '#838383').attr('stroke', '#fff').attr('stroke-width', 1.5);
+}
+
+// ── 막대 그래프 ────────────────────────────
+{
+  const x = d3.scaleBand()
+    .domain(data.map(d => d.label))
+    .range([0, iW]).padding(0.35);
+
+  const { g, y } = baseChart('#chart-bar', [0, 200], yTicksBar);
+
+  // X축
+  g.append('g')
+    .attr('transform', `translate(0,${iH})`)
+    .call(d3.axisBottom(x).tickSize(0).tickPadding(8))
+    .call(a => a.select('.domain').remove())
+    .selectAll('text')
+      .style('font-size', '12px').style('fill', '#999999').style('font-family', FONT);
+
+  // 막대
+  g.selectAll('.bar').data(data).join('rect')
+    .attr('x', d => x(d.label)).attr('width', x.bandwidth())
+    .attr('y', iH).attr('height', 0)
+    .attr('fill', '#838383')
+    .transition().duration(800).ease(d3.easeCubicInOut)
+    .attr('y', d => y(d.value)).attr('height', d => iH - y(d.value));
+}
+</script>
+</body>
+</html>

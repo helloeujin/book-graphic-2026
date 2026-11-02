@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>범례 vs 직접 레이블</title>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family:'Pretendard','Noto Sans KR',sans-serif;
+      background:#fff;
+      padding:40px 20px;
+    }
+    .panels { display:flex; gap:24px; align-items:flex-start; }
+    .panel  { display:inline-block; }
+
+    .panel-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: #363636;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding-bottom: 8px;
+      margin-bottom: 14px;
+      border-bottom: 1px solid #ddd;
+    }
+    .badge {
+      font-size: 12px;
+      font-weight: 700;
+      border-radius: 4px;
+      padding: 3px 10px;
+      color: #fff;
+      letter-spacing: 0.03em;
+      white-space: nowrap;
+    }
+    .badge-worse  { background: #b8351b; }
+    .badge-better { background: #37760a; }
+
+    /* 범례 (Don't 차트 전용) */
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px 12px;
+      margin-bottom: 8px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 12px;
+      color: #363636;
+    }
+    .legend-spacer { height: 26px; }
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+      flex-shrink: 0;
+    }
+  </style>
+</head>
+<body>
+<div class="panels">
+
+  <!-- Don't: 범례 따로 -->
+  <div class="panel">
+    <p class="panel-label">
+      <span class="badge badge-worse">Worse</span>
+      범례 별도 배치
+    </p>
+    <div class="legend">
+      <span class="legend-item"><span class="legend-dot" style="background:#6565FF;"></span>그룹 1</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#a3a3ff;"></span>그룹 2</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#666666;"></span>그룹 3</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#bbbbbb;"></span>그룹 4</span>
+    </div>
+    <div id="chart-legend"></div>
+  </div>
+
+  <!-- Do: 끝 레이블 직접 -->
+  <div class="panel">
+    <p class="panel-label">
+      <span class="badge badge-better">Better</span>
+      선 끝에 직접 레이블
+    </p>
+    <div class="legend-spacer"></div>
+    <div id="chart-direct"></div>
+  </div>
+
+</div>
+<script>
+const COLORS = ['#6565FF', '#a3a3ff', '#666666', '#bbbbbb'];
+const NAMES  = ['그룹 1', '그룹 2', '그룹 3', '그룹 4'];
+const FONT   = "Pretendard,'Noto Sans KR',sans-serif";
+
+const seriesData = [
+  [20, 25, 30, 28, 35, 40, 38, 45, 50, 52],  // 그룹 1
+  [15, 18, 22, 20, 25, 27, 30, 28, 32, 35],  // 그룹 2
+  [40, 38, 35, 36, 33, 30, 28, 29, 26, 24],  // 그룹 3
+  [48, 45, 42, 44, 40, 38, 35, 36, 32, 30],  // 그룹 4
+];
+
+const n      = seriesData[0].length;
+const W = 236, H = 200;
+const M = { top: 6, right: 6, bottom: 30, left: 36 };
+const iW = W - M.left - M.right;
+const iH = H - M.top  - M.bottom;
+
+const yTicks = [0, 20, 40, 60];
+const topTick = yTicks[yTicks.length - 1];
+
+function drawChart(containerId, showEndLabels) {
+  const svg = d3.select(containerId).append('svg')
+    .attr('width', W).attr('height', H)
+    .style('overflow', 'visible');
+  const g = svg.append('g').attr('transform', `translate(${M.left},${M.top})`);
+
+  const x = d3.scaleLinear().domain([0, n - 1]).range([0, iW]);
+  const y = d3.scaleLinear().domain([0, 65]).range([iH, 0]);
+
+  // 그리드
+  g.selectAll('.grid').data(yTicks).join('line')
+    .attr('x1', 0).attr('x2', iW)
+    .attr('y1', d => y(d)).attr('y2', d => y(d))
+    .style('stroke', d => d === 0 ? '#363636' : '#aaaaaa')
+    .style('stroke-dasharray', d => d === 0 ? '0' : '2')
+    .style('stroke-opacity', 0.4);
+
+  // Y축
+  g.append('g')
+    .call(
+      d3.axisLeft(y)
+        .tickValues(yTicks)
+        .tickSize(0)
+        .tickPadding(6)
+        .tickFormat(d => d === topTick ? `${d}` : `${d}`)
+    )
+    .call(a => a.select('.domain').remove())
+    .selectAll('text')
+      .style('font-size', '12px').style('fill', '#999999')
+      .style('font-family', FONT).style('text-anchor', 'end');
+
+  // X축 (첫점·끝점만)
+  g.append('g')
+    .attr('transform', `translate(0,${iH})`)
+    .call(
+      d3.axisBottom(x)
+        .tickValues([0, n - 1])
+        .tickSize(4).tickPadding(6)
+        .tickFormat((d, i) => ['1월', '10월'][i])
+    )
+    .call(a => a.select('.domain').remove())
+    .selectAll('text')
+      .style('font-size', '12px').style('fill', '#999999').style('font-family', FONT);
+
+  g.selectAll('.tick line').style('stroke', '#999999');
+
+  // 선 그리기
+  seriesData.forEach((vals, i) => {
+    const lineGen = d3.line().x((d, j) => x(j)).y(d => y(d)).curve(d3.curveMonotoneX);
+    const path = g.append('path')
+      .datum(vals)
+      .attr('fill', 'none')
+      .attr('stroke', COLORS[i])
+      .attr('stroke-width', 2)
+      .attr('d', lineGen);
+    const len = path.node().getTotalLength();
+    path.attr('stroke-dasharray', `${len} ${len}`).attr('stroke-dashoffset', len)
+      .transition().duration(800).ease(d3.easeCubicInOut).attr('stroke-dashoffset', 0);
+  });
+
+  // 끝 레이블 (Do 차트만)
+  if (showEndLabels) {
+    const MIN_GAP = 13;
+    const labels = seriesData
+      .map((vals, i) => ({ name: NAMES[i], color: COLORS[i], y: y(vals[n - 1]) }))
+      .sort((a, b) => a.y - b.y);
+
+    for (let i = 1; i < labels.length; i++) {
+      if (labels[i].y - labels[i - 1].y < MIN_GAP)
+        labels[i].y = labels[i - 1].y + MIN_GAP;
+    }
+
+    labels.forEach(label => {
+      g.append('text')
+        .attr('x', iW + 6).attr('y', label.y)
+        .attr('dy', '0.32em')
+        .style('font-size', '11px').style('font-weight', '600')
+        .style('fill', label.color).style('font-family', FONT)
+        .text(label.name);
+    });
+  }
+}
+
+drawChart('#chart-legend', false);
+drawChart('#chart-direct', true);
+</script>
+</body>
+</html>
