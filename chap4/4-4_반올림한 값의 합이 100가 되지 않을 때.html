@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>4-4 반올림한 값의 합이 100%가 되지 않을 때</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7.8.5/dist/d3.min.js"></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); --bg: #fff; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #fff; } }
+  :root[data-theme="dark"] { --bg: #fff; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', 'Noto Sans KR', sans-serif; background: var(--bg); padding: 40px 20px; word-break: keep-all; }
+  .container { max-width: 620px; margin: 0; }
+  .compare-wrap { display: flex; gap: 24px; flex-wrap: wrap; }
+  .panel { flex: 1 1 236px; min-width: 0; }
+  .panel-header { font-size: 13px; font-weight: 500; color: #363636; display: flex; align-items: center; gap: 8px;
+    padding-bottom: 8px; margin-bottom: 14px; border-bottom: 1px solid #ddd; }
+  .badge { font-size: 12px; font-weight: 700; border-radius: 4px; padding: 3px 10px; color: #ffffff;
+    letter-spacing: 0.03em; flex-shrink: 0; }
+  .badge-better { background: #37760a; }
+  .badge-worse  { background: #b8351b; }
+  .chart-title { font-size: 15px; line-height: 21px; font-weight: 700; color: #1a1a1a; }
+  .chart-sub { font-size: 12px; line-height: 16px; color: #777777; margin-top: 2px; margin-bottom: 8px; }
+  .sub { margin-bottom: 14px; }
+  .chart-note { font-size: 12px; line-height: 17px; color: #363636; margin-top: 6px; min-height: 17px; }
+  .source { font-size: 13px; line-height: 17px; color: #777777; margin-top: 18px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="compare-wrap">
+    <div class="panel">
+      <div class="panel-header"><span class="badge badge-worse">Don’t</span><span>합계를 맞추려고 값을 바꿈</span></div>
+      <div class="sub" id="dont">
+        <p class="chart-title">새 서비스에 대한 의견</p>
+        <p class="chart-sub">응답 비율</p>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="badge badge-better">Do</span><span>값은 그대로 두고 주석으로 알림</span></div>
+      <div class="sub" id="do">
+        <p class="chart-title">새 서비스에 대한 의견</p>
+        <p class="chart-sub">응답 비율</p>
+      </div>
+    </div>
+  </div>
+  <p class="source">가상 데이터. 세 항목의 실제 비율은 모두 1/3(33.333…%)입니다.</p>
+</div>
+<script>
+const FONT = "'Pretendard','Noto Sans KR',sans-serif";
+const W = 298, H = 62;
+const barY = 22, barH = 36;
+
+// 가상 데이터: 세 항목이 정확히 1/3씩
+const CATS = ['찬성', '반대', '모름'];
+// 찬성·반대는 파랑의 명도 단계로, 의견이 없는 '모름'은 회색(3-3, 3-4 예시와 같은 #bbbbbb)으로
+const COLORS = ['#0b66d6', '#5b97e2', '#bbbbbb'];
+const TEXT = ['#ffffff', '#ffffff', '#1a1a1a'];
+
+const x = d3.scaleLinear().domain([0, 1]).range([0, W]);
+
+function draw(sel, labels, note) {
+  const svg = d3.select(sel).append('svg').attr('width', W).attr('height', H);
+  CATS.forEach((c, i) => {
+    const x0 = x(i / 3), x1 = x((i + 1) / 3);
+    // 항목 이름은 막대 위에 직접 표시
+    svg.append('text').attr('x', x0).attr('y', 14)
+      .style('font-size', '13px').style('fill', '#999999').style('font-family', FONT).text(c);
+    svg.append('rect').attr('x', x0).attr('y', barY).attr('width', x1 - x0 - (i < 2 ? 2 : 0)).attr('height', barH)
+      .attr('fill', COLORS[i]);
+    svg.append('text').attr('x', x0 + 8).attr('y', barY + barH / 2).attr('dy', '0.35em')
+      .style('font-size', '13px').style('font-weight', 700).style('fill', TEXT[i]).style('font-family', FONT)
+      .text(labels[i]);
+  });
+  d3.select(sel).append('p').attr('class', 'chart-note').text(note);
+}
+// Don't: 마지막 항목을 33.4%로 바꿔 합계를 100%로 맞춤
+draw('#dont', ['33.3%', '33.3%', '33.4%'], '');
+// Do: 반올림한 값을 그대로 두고 주석을 붙임
+draw('#do', ['33.3%', '33.3%', '33.3%'], '반올림으로 인해 합계가 100%가 되지 않을 수 있음');
+</script>
+</body>
+</html>

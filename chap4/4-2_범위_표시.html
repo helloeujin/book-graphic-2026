@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>4-2 범위 표시</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7.8.5/dist/d3.min.js"></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); --bg: #fff; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #fff; } }
+  :root[data-theme="dark"] { --bg: #fff; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', 'Noto Sans KR', sans-serif; background: var(--bg); padding: 40px 20px; word-break: keep-all; }
+  .container { max-width: 620px; margin: 0; }
+  .compare-wrap { display: flex; gap: 24px; flex-wrap: wrap; }
+  .panel { flex: 1 1 236px; min-width: 0; }
+  .panel-header { font-size: 13px; font-weight: 500; color: #363636; display: flex; align-items: center; gap: 8px;
+    padding-bottom: 8px; margin-bottom: 14px; border-bottom: 1px solid #ddd; }
+  .badge { font-size: 12px; font-weight: 700; border-radius: 4px; padding: 3px 10px; color: #ffffff;
+    letter-spacing: 0.03em; flex-shrink: 0; background: #555555; }
+  .chart-title { font-size: 15px; line-height: 21px; font-weight: 700; color: #1a1a1a; }
+  .chart-sub { font-size: 12px; line-height: 16px; color: #777777; margin-top: 2px; margin-bottom: 8px; }
+  .sub { margin-bottom: 14px; }
+  .source { font-size: 13px; line-height: 17px; color: #777777; margin-top: 18px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="compare-wrap">
+    <div class="panel">
+      <div class="panel-header"><span class="badge">값의 범위</span><span>가로 띠로 표시</span></div>
+      <div class="sub" id="value">
+        <p class="chart-title">거실의 시간대별 실내 습도</p>
+        <p class="chart-sub">하루 동안, 단위: %</p>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="badge">기간</span><span>세로 띠로 표시</span></div>
+      <div class="sub" id="period">
+        <p class="chart-title">매장 A의 월별 매출</p>
+        <p class="chart-sub">1~12월, 단위: 억 원</p>
+      </div>
+    </div>
+  </div>
+  <p class="source">실내 습도와 월별 매출, 예시 데이터.</p>
+</div>
+<script>
+const FONT = "'Pretendard','Noto Sans KR',sans-serif";
+const W = 298, H = 170;
+const margin = { top: 12, right: 12, bottom: 24, left: 30 };
+const iW = W - margin.left - margin.right, iH = H - margin.top - margin.bottom;
+const BLUE = '#0b66d6', BAND = '#eeeeee';
+
+function frame(sel, x, y, yTicks, xTicks, xFmt) {
+  const svg = d3.select(sel).append('svg').attr('width', W).attr('height', H);
+  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+  const grid = g.append('g');
+  grid.selectAll('line').data(yTicks.filter(d => d !== 0)).join('line')
+    .attr('x1', 0).attr('x2', iW).attr('y1', d => y(d)).attr('y2', d => y(d))
+    .style('stroke', '#aaaaaa').style('stroke-dasharray', '2').style('stroke-opacity', 0.4);
+  g.append('line').attr('x1', 0).attr('x2', iW).attr('y1', y(0)).attr('y2', y(0))
+    .style('stroke', '#777777').style('stroke-width', 1);
+  g.append('g').call(d3.axisLeft(y).tickValues(yTicks).tickSize(0).tickPadding(8))
+    .call(a => a.select('.domain').remove())
+    .selectAll('text').style('font-size', '13px').style('fill', '#999999').style('font-family', FONT);
+  g.append('g').attr('transform', `translate(0,${iH})`)
+    .call(d3.axisBottom(x).tickValues(xTicks).tickSize(0).tickPadding(8).tickFormat(xFmt))
+    .call(a => a.select('.domain').remove())
+    .selectAll('text').style('font-size', '13px').style('fill', '#999999').style('font-family', FONT);
+  return g;
+}
+function note(g, x0, y0, s, anchor) {
+  g.append('text').attr('x', x0).attr('y', y0).attr('text-anchor', anchor || 'start')
+    .style('font-size', '12px').style('fill', '#888888').style('font-family', FONT).text(s);
+}
+
+// 값의 범위: 시간대별 실내 습도(%), 권장 범위 40~60%
+(() => {
+  const HOURS = d3.range(0, 25, 2);
+  const HUM = [55, 57, 58, 56, 50, 44, 38, 35, 37, 42, 48, 52, 54];
+  const x = d3.scaleLinear().domain([0, 24]).range([0, iW]);
+  const y = d3.scaleLinear().domain([0, 80]).range([iH, 0]);
+  const g = frame('#value', x, y, [0, 20, 40, 60, 80], [0, 6, 12, 18, 24], d => d + '시');
+  g.insert('rect', ':first-child').attr('x', 0).attr('width', iW)
+    .attr('y', y(60)).attr('height', y(40) - y(60)).attr('fill', BAND);
+  g.append('path').datum(HUM)
+    .attr('d', d3.line().x((d, i) => x(HOURS[i])).y(d => y(d)))
+    .attr('fill', 'none').attr('stroke', BLUE).attr('stroke-width', 2).attr('stroke-linejoin', 'round');
+  note(g, iW - 2, y(60) - 5, '권장 습도 40~60%', 'end');
+})();
+
+// 기간: 월별 매출(억 원), 5~6월 할인 행사
+(() => {
+  const MONTHS = d3.range(1, 13);
+  const SALES = [10, 11, 10, 12, 16, 17, 12, 11, 12, 13, 12, 14];
+  const x = d3.scalePoint().domain(MONTHS).range([0, iW]);
+  const y = d3.scaleLinear().domain([0, 20]).range([iH, 0]);
+  const g = frame('#period', x, y, [0, 5, 10, 15, 20], [1, 4, 7, 10, 12], d => d + '월');
+  const step = x(2) - x(1);
+  const x0 = x(5) - step / 2, x1 = x(6) + step / 2;
+  g.insert('rect', ':first-child').attr('x', x0).attr('width', x1 - x0)
+    .attr('y', 0).attr('height', iH).attr('fill', BAND);
+  g.append('path').datum(SALES)
+    .attr('d', d3.line().x((d, i) => x(MONTHS[i])).y(d => y(d)))
+    .attr('fill', 'none').attr('stroke', BLUE).attr('stroke-width', 2).attr('stroke-linejoin', 'round');
+  note(g, (x0 + x1) / 2, y(0) - 5, '할인 행사', 'middle');
+})();
+</script>
+</body>
+</html>

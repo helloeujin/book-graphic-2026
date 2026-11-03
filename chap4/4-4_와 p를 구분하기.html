@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>4-4 %와 %p를 구분하기</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7.8.5/dist/d3.min.js"></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); --bg: #fff; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #fff; } }
+  :root[data-theme="dark"] { --bg: #fff; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', 'Noto Sans KR', sans-serif; background: var(--bg); padding: 40px 20px; word-break: keep-all; }
+  .container { max-width: 620px; margin: 0; }
+  .compare-wrap { display: flex; gap: 24px; flex-wrap: wrap; }
+  .panel { flex: 1 1 236px; min-width: 0; }
+  .panel-header { font-size: 13px; font-weight: 500; color: #363636; display: flex; align-items: center; gap: 8px;
+    padding-bottom: 8px; margin-bottom: 14px; border-bottom: 1px solid #ddd; }
+  .badge { font-size: 12px; font-weight: 700; border-radius: 4px; padding: 3px 10px; color: #ffffff;
+    letter-spacing: 0.03em; flex-shrink: 0; background: #555555; }
+  .chart-title { font-size: 15px; line-height: 21px; font-weight: 700; color: #1a1a1a; }
+  .chart-sub { font-size: 12px; line-height: 16px; color: #777777; margin-top: 2px; margin-bottom: 8px; }
+  .sub { margin-bottom: 14px; }
+  .source { font-size: 13px; line-height: 17px; color: #777777; margin-top: 18px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="compare-wrap">
+    <div class="panel">
+      <div class="panel-header"><span class="badge">%p</span><span>두 비율의 차이로 비교</span></div>
+      <div class="sub" id="pp">
+        <p class="chart-title">B 서비스 이용률이 가장 많이 올랐다</p>
+        <p class="chart-sub">서비스별 이용률, 2024년(○) → 2025년(●)</p>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="badge">%</span><span>이전 값 대비 변화율로 비교</span></div>
+      <div class="sub" id="pct">
+        <p class="chart-title">A 서비스 이용률은 두 배로 늘었다</p>
+        <p class="chart-sub">서비스별 이용률, 2024년(○) → 2025년(●)</p>
+      </div>
+    </div>
+  </div>
+  <p class="source">가상 데이터. 두 차트는 같은 데이터를 사용합니다. 증가 폭(%p)으로 보면 B가, 변화율(%)로 보면 A가 가장 많이 늘었습니다. 무엇을 기준으로 삼느냐에 따라 순위와 제목이 달라집니다.</p>
+</div>
+<script>
+const FONT = "'Pretendard','Noto Sans KR',sans-serif";
+const W = 298, H = 132;
+const margin = { top: 6, right: 4, bottom: 24, left: 24 };
+const COL = 54;  // 오른쪽 변화량 열의 너비
+const iW = W - margin.left - margin.right - COL, iH = H - margin.top - margin.bottom;
+
+// 가상 데이터: 2024년 → 2025년 이용률(%)
+const DATA = [
+  { name: 'A', a: 3,  b: 6 },   // +3%p, +100%
+  { name: 'B', a: 30, b: 36 },  // +6%p, +20%
+  { name: 'C', a: 12, b: 16 },  // +4%p, +33%
+];
+DATA.forEach(d => { d.pp = d.b - d.a; d.pct = (d.b - d.a) / d.a * 100; });
+
+// 회색은 3-3, 3-4 예시와 같은 #bbbbbb, 강조색은 tokens.json 파랑
+const BLUE = '#0b66d6', GRAY = '#bbbbbb';
+
+const x = d3.scaleLinear().domain([0, 40]).range([0, iW]);
+const y = d3.scaleBand().domain(DATA.map(d => d.name)).range([0, iH]).padding(0.3);
+const xTicks = [0, 10, 20, 30, 40];
+
+function draw(sel, focus, label) {
+  const svg = d3.select(sel).append('svg').attr('width', W).attr('height', H);
+  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+  g.append('g').attr('transform', `translate(0,${iH})`)
+    .call(d3.axisBottom(x).tickValues(xTicks).tickSize(0).tickPadding(8).tickFormat(d => d === 40 ? '40%' : d))
+    .call(a => a.select('.domain').remove())
+    .selectAll('text').style('font-size', '13px').style('fill', '#999999').style('font-family', FONT);
+  g.append('g').call(d3.axisLeft(y).tickSize(0).tickPadding(8))
+    .call(a => a.select('.domain').remove())
+    .selectAll('text').style('font-size', '13px').style('fill', '#1a1a1a').style('font-family', FONT);
+
+  // 각 행의 가로 점선 그리드
+  g.selectAll('line.gy').data(DATA).join('line')
+    .attr('x1', 0).attr('x2', iW)
+    .attr('y1', d => y(d.name) + y.bandwidth() / 2).attr('y2', d => y(d.name) + y.bandwidth() / 2)
+    .style('stroke', '#aaaaaa').style('stroke-dasharray', '2').style('stroke-opacity', 0.4);
+
+  DATA.forEach(d => {
+    const cy = y(d.name) + y.bandwidth() / 2;
+    const c = d.name === focus ? BLUE : GRAY;
+    g.append('line').attr('x1', x(d.a)).attr('x2', x(d.b)).attr('y1', cy).attr('y2', cy)
+      .style('stroke', c).style('stroke-width', 3);
+    // 2024년은 속이 빈 원, 2025년은 채운 원
+    g.append('circle').attr('cx', x(d.a)).attr('cy', cy).attr('r', 4.5)
+      .attr('fill', '#ffffff').attr('stroke', c).attr('stroke-width', 2);
+    g.append('circle').attr('cx', x(d.b)).attr('cy', cy).attr('r', 5).attr('fill', c);
+    // 오른쪽 열: 이 차트가 기준으로 삼은 변화량
+    g.append('text').attr('x', iW + COL).attr('y', cy).attr('dy', '0.35em').attr('text-anchor', 'end')
+      .style('font-size', '13px').style('font-weight', 700).style('font-family', FONT)
+      .style('fill', d.name === focus ? '#363636' : '#999999')
+      .text(label(d));
+  });
+}
+draw('#pp',  'B', d => '+' + d.pp + '%p');
+draw('#pct', 'A', d => '+' + Math.round(d.pct) + '%');
+</script>
+</body>
+</html>

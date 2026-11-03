@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>4-2 익숙하지 않은 차트는 읽는 방법 알려주기</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7.8.5/dist/d3.min.js"></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); --bg: #fff; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #fff; } }
+  :root[data-theme="dark"] { --bg: #fff; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', 'Noto Sans KR', sans-serif; background: var(--bg); padding: 40px 20px; word-break: keep-all; }
+  .container { max-width: 620px; margin: 0; }
+  .compare-wrap { display: flex; gap: 24px; flex-wrap: wrap; }
+  .panel { flex: 1 1 236px; min-width: 0; }
+  .panel-header { font-size: 13px; font-weight: 500; color: #363636; display: flex; align-items: center; gap: 8px;
+    padding-bottom: 8px; margin-bottom: 14px; border-bottom: 1px solid #ddd; }
+  .badge { font-size: 12px; font-weight: 700; border-radius: 4px; padding: 3px 10px; color: #ffffff;
+    letter-spacing: 0.03em; flex-shrink: 0; }
+  .badge-better { background: #37760a; }
+  .badge-worse  { background: #b8351b; }
+  .chart-title { font-size: 15px; line-height: 21px; font-weight: 700; color: #1a1a1a; }
+  .chart-sub { font-size: 14px; line-height: 20px; color: #666666; margin-top: 2px; margin-bottom: 8px; }
+  .sub { margin-bottom: 14px; }
+  .source { font-size: 13px; line-height: 17px; color: #777777; margin-top: 18px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="compare-wrap">
+    <div class="panel">
+      <div class="panel-header"><span class="badge badge-worse">Before</span><span>읽는 방법 안내 없음</span></div>
+      <div class="sub" id="before">
+        <p class="chart-title">지역별 1인 가구 비율</p>
+        <p class="chart-sub">2020년과 2025년 비교</p>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="badge badge-better">After</span><span>대각선과 의미를 표시</span></div>
+      <div class="sub" id="after">
+        <p class="chart-title">지역별 1인 가구 비율</p>
+        <p class="chart-sub">2020년과 2025년 비교</p>
+      </div>
+    </div>
+  </div>
+  <p class="source">지역별 1인 가구 비율, 예시 데이터. 점 하나가 지역 하나입니다. 두 차트는 같은 데이터를 사용하고 기준선과 안내 문구만 다릅니다.</p>
+</div>
+<script>
+const FONT = "'Pretendard','Noto Sans KR',sans-serif";
+const W = 298, H = 290;
+const margin = { top: 24, right: 18, bottom: 40, left: 40 };
+const iW = W - margin.left - margin.right, iH = H - margin.top - margin.bottom;
+const BLUE = '#0b66d6';
+
+// 예시 데이터: 지역별 1인 가구 비율(%), [2020년, 2025년]
+const DATA = [
+  [24, 28], [26, 31], [27, 29], [28, 33], [29, 32], [30, 34],
+  [31, 30], [32, 36], [33, 35], [34, 33], [35, 38], [36, 37]
+];
+
+const x = d3.scaleLinear().domain([20, 40]).range([0, iW]);
+const y = d3.scaleLinear().domain([20, 40]).range([iH, 0]);
+const ticks = [20, 25, 30, 35, 40];
+
+function note(g, x0, y0, s, anchor) {
+  g.append('text').attr('x', x0).attr('y', y0).attr('text-anchor', anchor || 'start')
+    .style('font-size', '12px').style('fill', '#888888').style('font-family', FONT).text(s);
+}
+
+function draw(sel, guide) {
+  const svg = d3.select(sel).append('svg').attr('width', W).attr('height', H);
+  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+  g.selectAll('line.gy').data(ticks.slice(1)).join('line')
+    .attr('x1', 0).attr('x2', iW).attr('y1', d => y(d)).attr('y2', d => y(d))
+    .style('stroke', '#aaaaaa').style('stroke-dasharray', '2').style('stroke-opacity', 0.4);
+  g.selectAll('line.gx').data(ticks.slice(1)).join('line')
+    .attr('x1', d => x(d)).attr('x2', d => x(d)).attr('y1', 0).attr('y2', iH)
+    .style('stroke', '#aaaaaa').style('stroke-dasharray', '2').style('stroke-opacity', 0.4);
+  g.append('line').attr('x1', 0).attr('x2', iW).attr('y1', iH).attr('y2', iH)
+    .style('stroke', '#777777').style('stroke-width', 1);
+  g.append('g').call(d3.axisLeft(y).tickValues(ticks).tickSize(0).tickPadding(8).tickFormat(d => d === 40 ? '40%' : d))
+    .call(a => a.select('.domain').remove())
+    .selectAll('text').style('font-size', '13px').style('fill', '#999999').style('font-family', FONT);
+  g.append('g').attr('transform', `translate(0,${iH})`)
+    .call(d3.axisBottom(x).tickValues(ticks).tickSize(0).tickPadding(8).tickFormat(d => d === 40 ? '40%' : d))
+    .call(a => a.select('.domain').remove())
+    .selectAll('text').style('font-size', '13px').style('fill', '#999999').style('font-family', FONT);
+
+  // 축 이름
+  g.append('text').attr('x', -margin.left).attr('y', -12)
+    .style('font-size', '12px').style('fill', '#777777').style('font-family', FONT).text('2025년');
+  g.append('text').attr('x', iW).attr('y', iH + 34).attr('text-anchor', 'end')
+    .style('font-size', '12px').style('fill', '#777777').style('font-family', FONT).text('2020년');
+
+  if (guide) {
+    // 두 해의 값이 같은 지점을 잇는 대각선
+    g.append('line').attr('x1', x(20)).attr('y1', y(20)).attr('x2', x(40)).attr('y2', y(40))
+      .style('stroke', '#777777').style('stroke-width', 1).style('stroke-dasharray', '3,3');
+    note(g, 4, 14, '↑ 5년 사이 늘어난 지역');
+    note(g, iW - 4, iH - 8, '5년 사이 줄어든 지역 ↓', 'end');
+  }
+
+  g.selectAll('circle').data(DATA).join('circle')
+    .attr('cx', d => x(d[0])).attr('cy', d => y(d[1])).attr('r', 4.5)
+    .attr('fill', BLUE).attr('stroke', '#ffffff').attr('stroke-width', 1.5);
+}
+draw('#before', false);
+draw('#after', true);
+</script>
+</body>
+</html>

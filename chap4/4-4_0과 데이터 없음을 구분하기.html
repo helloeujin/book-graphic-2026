@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>4-4 0과 데이터 없음을 구분하기</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7.8.5/dist/d3.min.js"></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); --bg: #fff; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #fff; } }
+  :root[data-theme="dark"] { --bg: #fff; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', 'Noto Sans KR', sans-serif; background: var(--bg); padding: 40px 20px; word-break: keep-all; }
+  .container { max-width: 620px; margin: 0; }
+  .compare-wrap { display: flex; gap: 24px; flex-wrap: wrap; }
+  .panel { flex: 1 1 236px; min-width: 0; }
+  .panel-header { font-size: 13px; font-weight: 500; color: #363636; display: flex; align-items: center; gap: 8px;
+    padding-bottom: 8px; margin-bottom: 14px; border-bottom: 1px solid #ddd; }
+  .badge { font-size: 12px; font-weight: 700; border-radius: 4px; padding: 3px 10px; color: #ffffff;
+    letter-spacing: 0.03em; flex-shrink: 0; }
+  .badge-better { background: #37760a; }
+  .badge-worse  { background: #b8351b; }
+  .chart-title { font-size: 15px; line-height: 21px; font-weight: 700; color: #1a1a1a; }
+  .chart-sub { font-size: 12px; line-height: 16px; color: #777777; margin-top: 2px; margin-bottom: 8px; }
+  .sub { margin-bottom: 14px; }
+  .chart-note { font-size: 12px; line-height: 17px; color: #363636; margin-top: 6px; min-height: 17px; }
+  .source { font-size: 13px; line-height: 17px; color: #777777; margin-top: 18px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="compare-wrap">
+    <div class="panel">
+      <div class="panel-header"><span class="badge badge-worse">Don’t</span><span>결측값을 0으로 표시</span></div>
+      <div class="sub" id="bar-dont">
+        <p class="chart-title">월별 강수량</p>
+        <p class="chart-sub">단위: mm</p>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="badge badge-better">Do</span><span>'자료 없음'으로 구분</span></div>
+      <div class="sub" id="bar-do">
+        <p class="chart-title">월별 강수량</p>
+        <p class="chart-sub">단위: mm</p>
+      </div>
+    </div>
+  </div>
+  <p class="source">가상 데이터. 2월은 실제로 비가 오지 않은 달(0mm)이고, 3월은 값이 없는 달입니다. 두 차트는 같은 데이터를 사용하고, 값이 없는 부분을 표시하는 방법만 다릅니다.</p>
+</div>
+<script>
+const FONT = "'Pretendard','Noto Sans KR',sans-serif";
+const BLUE = '#0b66d6';
+const W = 298;
+
+// 가상 데이터. 2월은 0mm, 3월은 결측(null)
+const RAIN = [
+  { m: 1, v: 21 }, { m: 2, v: 0 }, { m: 3, v: null },
+  { m: 4, v: 78 }, { m: 5, v: 102 }, { m: 6, v: 130 },
+];
+const bM = { top: 18, right: 4, bottom: 24, left: 4 };
+const bH = 150, biW = W - bM.left - bM.right, biH = bH - bM.top - bM.bottom;
+const bx = d3.scaleBand().domain(RAIN.map(d => d.m)).range([0, biW]).padding(0.28);
+const by = d3.scaleLinear().domain([0, 140]).range([biH, 0]);
+
+function drawBars(sel, showMissing) {
+  const svg = d3.select(sel).append('svg').attr('width', W).attr('height', bH);
+  const g = svg.append('g').attr('transform', `translate(${bM.left},${bM.top})`);
+  RAIN.forEach(d => {
+    const cx = bx(d.m) + bx.bandwidth() / 2;
+    const v = d.v === null ? 0 : d.v;          // Don't에서는 결측값을 0으로 취급
+    g.append('rect').attr('x', bx(d.m)).attr('y', by(v))
+      .attr('width', bx.bandwidth()).attr('height', biH - by(v)).attr('fill', BLUE);
+    if (d.v === null && showMissing) {
+      // 값이 없는 자리에 '자료 없음'
+      g.append('text').attr('x', cx).attr('y', biH - 8).attr('text-anchor', 'middle')
+        .style('font-size', '12px').style('fill', '#888888').style('font-family', FONT).text('자료 없음');
+    } else {
+      g.append('text').attr('x', cx).attr('y', by(v) - 6).attr('text-anchor', 'middle')
+        .style('font-size', '13px').style('font-weight', 700).style('fill', '#363636').style('font-family', FONT)
+        .text(v);
+    }
+  });
+  g.append('line').attr('x1', 0).attr('x2', biW).attr('y1', biH).attr('y2', biH)
+    .style('stroke', '#777777').style('stroke-width', 1);
+  g.append('g').attr('transform', `translate(0,${biH})`)
+    .call(d3.axisBottom(bx).tickSize(0).tickPadding(8).tickFormat(d => d + '월'))
+    .call(a => a.select('.domain').remove())
+    .selectAll('text').style('font-size', '13px').style('fill', '#999999').style('font-family', FONT);
+}
+drawBars('#bar-dont', false);
+drawBars('#bar-do', true);
+
+</script>
+</body>
+</html>

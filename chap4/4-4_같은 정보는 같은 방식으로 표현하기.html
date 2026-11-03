@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>4-4 같은 정보는 같은 방식으로 표현하기</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7.8.5/dist/d3.min.js"></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); --bg: #fff; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #fff; } }
+  :root[data-theme="dark"] { --bg: #fff; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', 'Noto Sans KR', sans-serif; background: var(--bg); padding: 40px 20px; word-break: keep-all; }
+  .container { max-width: 620px; margin: 0; }
+  .compare-wrap { display: flex; gap: 24px; flex-wrap: wrap; }
+  .panel { flex: 1 1 236px; min-width: 0; }
+  .panel-header { font-size: 13px; font-weight: 500; color: #363636; display: flex; align-items: center; gap: 8px;
+    padding-bottom: 8px; margin-bottom: 14px; border-bottom: 1px solid #ddd; }
+  .badge { font-size: 12px; font-weight: 700; border-radius: 4px; padding: 3px 10px; color: #ffffff;
+    letter-spacing: 0.03em; flex-shrink: 0; }
+  .badge-better { background: #37760a; }
+  .badge-worse  { background: #b8351b; }
+  .chart-title { font-size: 15px; line-height: 21px; font-weight: 700; color: #1a1a1a; }
+  .chart-sub { font-size: 12px; line-height: 16px; color: #777777; margin-top: 2px; margin-bottom: 8px; }
+  .sub { margin-bottom: 14px; }
+  .sub + .sub { margin-top: 22px; }
+  .source { font-size: 13px; line-height: 17px; color: #777777; margin-top: 18px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="compare-wrap">
+    <div class="panel">
+      <div class="panel-header"><span class="badge badge-worse">Don’t</span><span>차트마다 표기 방식이 다름</span></div>
+      <div class="sub" id="dont-a">
+        <p class="chart-title">분기별 매출</p>
+        <p class="chart-sub">2025년, 단위: 원</p>
+      </div>
+      <div class="sub" id="dont-b">
+        <p class="chart-title">분기별 매출 증감률</p>
+        <p class="chart-sub">전년 같은 분기 대비</p>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="badge badge-better">Do</span><span>문서 전체에서 같은 기준</span></div>
+      <div class="sub" id="do-a">
+        <p class="chart-title">분기별 매출</p>
+        <p class="chart-sub">2025년, 단위: 원</p>
+      </div>
+      <div class="sub" id="do-b">
+        <p class="chart-title">분기별 매출 증감률</p>
+        <p class="chart-sub">전년 같은 분기 대비</p>
+      </div>
+    </div>
+  </div>
+  <p class="source">가상 데이터. 같은 보고서에 들어간 두 차트라고 가정했습니다. 양쪽은 같은 데이터를 사용하고, 분기와 증감의 표기 방식만 다릅니다.</p>
+</div>
+<script>
+const FONT = "'Pretendard','Noto Sans KR',sans-serif";
+const BLUE = '#0b66d6';
+const W = 298;
+
+// 가상 데이터
+const Q = [1, 2, 3, 4];
+const SALES = [1.2, 1.5, 1.4, 1.8];        // 억 원
+const CHANGE = [3.2, -1.5, 2.1, 8.4];      // 전년 같은 분기 대비 %
+
+// ── 위: 분기별 매출 세로 막대 (양쪽 같음) ──
+function drawSales(sel) {
+  const M = { top: 18, right: 4, bottom: 24, left: 4 }, H = 130;
+  const iW = W - M.left - M.right, iH = H - M.top - M.bottom;
+  const x = d3.scaleBand().domain(Q).range([0, iW]).padding(0.3);
+  const y = d3.scaleLinear().domain([0, 2]).range([iH, 0]);
+  const svg = d3.select(sel).append('svg').attr('width', W).attr('height', H);
+  const g = svg.append('g').attr('transform', `translate(${M.left},${M.top})`);
+  g.selectAll('rect').data(SALES).join('rect')
+    .attr('x', (d, i) => x(Q[i])).attr('y', d => y(d))
+    .attr('width', x.bandwidth()).attr('height', d => iH - y(d)).attr('fill', BLUE);
+  g.selectAll('text.val').data(SALES).join('text')
+    .attr('x', (d, i) => x(Q[i]) + x.bandwidth() / 2).attr('y', d => y(d) - 6).attr('text-anchor', 'middle')
+    .style('font-size', '13px').style('font-weight', 700).style('fill', '#363636').style('font-family', FONT)
+    .text(d => d + '억');
+  g.append('line').attr('x1', 0).attr('x2', iW).attr('y1', iH).attr('y2', iH)
+    .style('stroke', '#777777').style('stroke-width', 1);
+  g.append('g').attr('transform', `translate(0,${iH})`)
+    .call(d3.axisBottom(x).tickSize(0).tickPadding(8).tickFormat(d => d + '분기'))
+    .call(a => a.select('.domain').remove())
+    .selectAll('text').style('font-size', '13px').style('fill', '#999999').style('font-family', FONT);
+}
+
+// ── 아래: 분기별 증감률 가로 막대 ──
+function drawChange(sel, qFmt, vFmt) {
+  const M = { top: 4, right: 4, bottom: 4, left: 48 }, H = 116;
+  const iW = W - M.left - M.right, iH = H - M.top - M.bottom;
+  const x = d3.scaleLinear().domain([-6, 13]).range([0, iW]);
+  const y = d3.scaleBand().domain(Q).range([0, iH]).padding(0.3);
+  const svg = d3.select(sel).append('svg').attr('width', W).attr('height', H);
+  const g = svg.append('g').attr('transform', `translate(${M.left},${M.top})`);
+  g.append('g').call(d3.axisLeft(y).tickSize(0).tickPadding(8).tickFormat(qFmt))
+    .call(a => a.select('.domain').remove())
+    .selectAll('text').style('font-size', '13px').style('fill', '#999999').style('font-family', FONT);
+  g.selectAll('rect').data(CHANGE).join('rect')
+    .attr('x', d => x(Math.min(0, d))).attr('y', (d, i) => y(Q[i]))
+    .attr('width', d => Math.abs(x(d) - x(0))).attr('height', y.bandwidth()).attr('fill', BLUE);
+  // 0 기준선
+  g.append('line').attr('x1', x(0)).attr('x2', x(0)).attr('y1', 0).attr('y2', iH)
+    .style('stroke', '#777777').style('stroke-width', 1);
+  // 값 레이블: 양수는 막대 오른쪽, 음수는 막대 왼쪽
+  g.selectAll('text.val').data(CHANGE).join('text')
+    .attr('x', d => d < 0 ? x(d) - 5 : x(d) + 5)
+    .attr('y', (d, i) => y(Q[i]) + y.bandwidth() / 2).attr('dy', '0.35em')
+    .attr('text-anchor', d => d < 0 ? 'end' : 'start')
+    .style('font-size', '13px').style('font-weight', 700).style('fill', '#363636').style('font-family', FONT)
+    .style('paint-order', 'stroke').style('stroke', '#ffffff').style('stroke-width', 4)
+    .text(vFmt);
+}
+
+drawSales('#dont-a');
+drawSales('#do-a');
+// Don't: 위 차트는 '1분기'인데 아래 차트는 'Q1', 증가에는 부호가 없고 감소는 회계식 △
+drawChange('#dont-b', d => 'Q' + d, d => d < 0 ? '△' + Math.abs(d) + '%' : d + '%');
+// Do: 위 차트와 같은 '1분기', 증가는 +, 감소는 −
+drawChange('#do-b', d => d + '분기', d => (d < 0 ? '−' : '+') + Math.abs(d) + '%');
+</script>
+</body>
+</html>

@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>4-2 비교할 기준을 보여주기</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7.8.5/dist/d3.min.js"></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); --bg: #fff; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #fff; } }
+  :root[data-theme="dark"] { --bg: #fff; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', 'Noto Sans KR', sans-serif; background: var(--bg); padding: 40px 20px; word-break: keep-all; }
+  .container { max-width: 620px; margin: 0; }
+  .compare-wrap { display: flex; gap: 24px; flex-wrap: wrap; }
+  .panel { flex: 1 1 236px; min-width: 0; }
+  .panel-header { font-size: 13px; font-weight: 500; color: #363636; display: flex; align-items: center; gap: 8px;
+    padding-bottom: 8px; margin-bottom: 14px; border-bottom: 1px solid #ddd; }
+  .badge { font-size: 12px; font-weight: 700; border-radius: 4px; padding: 3px 10px; color: #ffffff;
+    letter-spacing: 0.03em; flex-shrink: 0; }
+  .badge-better { background: #37760a; }
+  .badge-worse  { background: #b8351b; }
+  .chart-title { font-size: 15px; line-height: 21px; font-weight: 700; color: #1a1a1a; }
+  .chart-sub { font-size: 12px; line-height: 16px; color: #777777; margin-top: 2px; margin-bottom: 8px; }
+  .sub { margin-bottom: 14px; }
+  .source { font-size: 13px; line-height: 17px; color: #777777; margin-top: 18px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="compare-wrap">
+    <div class="panel">
+      <div class="panel-header"><span class="badge badge-worse">Before</span><span>비교 기준 없음</span></div>
+      <div class="sub" id="before">
+        <p class="chart-title">지역별 출퇴근 대중교통 이용 비율</p>
+        <p class="chart-sub">단위: %</p>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="badge badge-better">After</span><span>전국 평균과 비교</span></div>
+      <div class="sub" id="after">
+        <p class="chart-title">지역별 출퇴근 대중교통 이용 비율</p>
+        <p class="chart-sub">단위: %</p>
+      </div>
+    </div>
+  </div>
+  <p class="source">출퇴근 때 대중교통을 이용하는 사람의 비율, 예시 데이터. 두 차트는 같은 데이터를 사용하고 비교 기준과 주석만 다릅니다.</p>
+</div>
+<script>
+const FONT = "'Pretendard','Noto Sans KR',sans-serif";
+const W = 298, H = 180;
+const margin = { top: 22, right: 8, bottom: 24, left: 52 };
+const iW = W - margin.left - margin.right, iH = H - margin.top - margin.bottom;
+// 회색은 3-3, 3-4 예시와 같은 #bbbbbb, 강조색은 tokens.json 파랑
+const BLUE = '#0b66d6', GRAY = '#bbbbbb';
+
+// 예시 데이터: 지역별 출퇴근 대중교통 이용 비율(%)
+const DATA = [
+  { k: 'A 지역', v: 52 }, { k: 'B 지역', v: 47 }, { k: 'C 지역', v: 44 },
+  { k: 'D 지역', v: 38 }, { k: 'E 지역', v: 35 }, { k: 'F 지역', v: 31 }
+];
+const AVG = 41, FOCUS = 'A 지역';
+
+const y = d3.scaleBand().domain(DATA.map(d => d.k)).range([0, iH]).padding(0.3);
+const x = d3.scaleLinear().domain([0, 80]).range([0, iW]);
+const xTicks = [0, 20, 40, 60, 80];
+
+function draw(sel, compare) {
+  const svg = d3.select(sel).append('svg').attr('width', W).attr('height', H);
+  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+  g.selectAll('line.gx').data(xTicks.filter(d => d !== 0)).join('line')
+    .attr('x1', d => x(d)).attr('x2', d => x(d)).attr('y1', 0).attr('y2', iH)
+    .style('stroke', '#aaaaaa').style('stroke-dasharray', '2').style('stroke-opacity', 0.4);
+  g.append('g').attr('transform', `translate(0,${iH})`)
+    .call(d3.axisBottom(x).tickValues(xTicks).tickSize(0).tickPadding(8))
+    .call(a => a.select('.domain').remove())
+    .selectAll('text').style('font-size', '13px').style('fill', '#999999').style('font-family', FONT);
+
+  g.selectAll('rect.bar').data(DATA).join('rect')
+    .attr('x', 0).attr('y', d => y(d.k)).attr('height', y.bandwidth()).attr('width', d => x(d.v))
+    .attr('fill', d => !compare || d.k === FOCUS ? BLUE : GRAY);
+  g.append('line').attr('x1', 0).attr('x2', 0).attr('y1', 0).attr('y2', iH)
+    .style('stroke', '#777777').style('stroke-width', 1);
+  g.selectAll('text.name').data(DATA).join('text')
+    .attr('x', -8).attr('y', d => y(d.k) + y.bandwidth() / 2).attr('dy', '0.34em').attr('text-anchor', 'end')
+    .style('font-size', '13px').style('fill', '#363636').style('font-family', FONT).text(d => d.k);
+
+  if (!compare) return;
+
+  // 전국 평균 기준선과 레이블
+  g.append('line').attr('x1', x(AVG)).attr('x2', x(AVG)).attr('y1', -4).attr('y2', iH)
+    .style('stroke', '#363636').style('stroke-width', 1).style('stroke-dasharray', '3,3');
+  g.append('text').attr('x', x(AVG)).attr('y', -10).attr('text-anchor', 'middle')
+    .style('font-size', '12px').style('fill', '#363636').style('font-family', FONT).text('전국 평균 41%');
+
+  // 강조한 지역의 비교 주석
+  const f = DATA.find(d => d.k === FOCUS);
+  const tx = x(f.v) + 6, ty = y(f.k) + y.bandwidth() / 2;
+  const t = g.append('text').attr('x', tx).attr('y', ty - 2)
+    .style('font-size', '12px').style('fill', '#363636').style('font-family', FONT);
+  t.append('tspan').attr('x', tx).text('전국 평균보다');
+  t.append('tspan').attr('x', tx).attr('dy', 14).style('font-weight', 700).text('11%p 높음');
+}
+draw('#before', false);
+draw('#after', true);
+</script>
+</body>
+</html>

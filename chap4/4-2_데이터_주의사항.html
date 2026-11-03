@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>4-2 데이터 자체의 주의사항 알려주기</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7.8.5/dist/d3.min.js"></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); --bg: #fff; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #fff; } }
+  :root[data-theme="dark"] { --bg: #fff; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', 'Noto Sans KR', sans-serif; background: var(--bg); padding: 40px 20px; word-break: keep-all; }
+  .container { max-width: 620px; margin: 0; }
+  .compare-wrap { display: flex; gap: 24px; flex-wrap: wrap; }
+  .panel { flex: 1 1 236px; min-width: 0; }
+  .panel-header { font-size: 13px; font-weight: 500; color: #363636; display: flex; align-items: center; gap: 8px;
+    padding-bottom: 8px; margin-bottom: 14px; border-bottom: 1px solid #ddd; }
+  .badge { font-size: 12px; font-weight: 700; border-radius: 4px; padding: 3px 10px; color: #ffffff;
+    letter-spacing: 0.03em; flex-shrink: 0; }
+  .badge-better { background: #37760a; }
+  .badge-worse  { background: #b8351b; }
+  .chart-title { font-size: 15px; line-height: 21px; font-weight: 700; color: #1a1a1a; }
+  .chart-sub { font-size: 12px; line-height: 16px; color: #777777; margin-top: 2px; margin-bottom: 8px; }
+  .sub { margin-bottom: 14px; }
+  .source { font-size: 13px; line-height: 17px; color: #777777; margin-top: 18px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="compare-wrap">
+    <div class="panel">
+      <div class="panel-header"><span class="badge badge-worse">Before</span><span>주의사항 없음</span></div>
+      <div class="sub" id="before">
+        <p class="chart-title">서비스 A의 월별 이용자 수</p>
+        <p class="chart-sub">1~12월, 단위: 만 명</p>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="badge badge-better">After</span><span>기준 변경과 잠정치 표시</span></div>
+      <div class="sub" id="after">
+        <p class="chart-title">서비스 A의 월별 이용자 수</p>
+        <p class="chart-sub">1~12월, 단위: 만 명</p>
+      </div>
+    </div>
+  </div>
+  <p class="source">서비스 A의 월별 이용자 수, 예시 데이터. 두 차트는 같은 데이터를 사용하고 주석과 표시 방식만 다릅니다.</p>
+</div>
+<script>
+const FONT = "'Pretendard','Noto Sans KR',sans-serif";
+const W = 298, H = 170;
+const margin = { top: 12, right: 12, bottom: 24, left: 30 };
+const iW = W - margin.left - margin.right, iH = H - margin.top - margin.bottom;
+const BLUE = '#0b66d6';
+
+// 예시 데이터: 월별 이용자 수(만 명)
+// 4월부터 중복 계정 제외로 집계 기준 변경, 11~12월은 잠정치
+const MONTHS = d3.range(1, 13);
+const USERS = [30, 31, 32, 25, 26, 27, 27, 28, 29, 29, 30, 31];
+const CHANGE = 4, MISSING = 7, PROVISIONAL_FROM = 10; // 11~12월이 잠정치
+
+const pts = MONTHS.map((m, i) => ({ m, v: USERS[i] }));
+const x = d3.scalePoint().domain(MONTHS).range([0, iW]);
+const y = d3.scaleLinear().domain([0, 40]).range([iH, 0]);
+const yTicks = [0, 10, 20, 30, 40];
+
+function label(g, x0, y0, lines, anchor, halo = true) {
+  const t = g.append('text').attr('x', x0).attr('y', y0).attr('text-anchor', anchor || 'start')
+    .style('font-size', '12px').style('fill', '#363636').style('font-family', FONT)
+    .style('paint-order', 'stroke').style('stroke', halo ? '#ffffff' : 'none').style('stroke-width', 3);
+  lines.forEach((s, i) => t.append('tspan').attr('x', x0).attr('dy', i === 0 ? 0 : 15).text(s));
+  return t;
+}
+
+function draw(sel, annotate) {
+  const svg = d3.select(sel).append('svg').attr('width', W).attr('height', H);
+  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+  g.selectAll('line.gy').data(yTicks.filter(d => d !== 0)).join('line')
+    .attr('x1', 0).attr('x2', iW).attr('y1', d => y(d)).attr('y2', d => y(d))
+    .style('stroke', '#aaaaaa').style('stroke-dasharray', '2').style('stroke-opacity', 0.4);
+  g.append('line').attr('x1', 0).attr('x2', iW).attr('y1', y(0)).attr('y2', y(0))
+    .style('stroke', '#777777').style('stroke-width', 1);
+  g.append('g').call(d3.axisLeft(y).tickValues(yTicks).tickSize(0).tickPadding(8))
+    .call(a => a.select('.domain').remove())
+    .selectAll('text').style('font-size', '13px').style('fill', '#999999').style('font-family', FONT);
+  g.append('g').attr('transform', `translate(0,${iH})`)
+    .call(d3.axisBottom(x).tickValues([1, 4, 7, 10, 12]).tickSize(0).tickPadding(8).tickFormat(d => d + '월'))
+    .call(a => a.select('.domain').remove())
+    .selectAll('text').style('font-size', '13px').style('fill', '#999999').style('font-family', FONT);
+
+  const line = d3.line().x(d => x(d.m)).y(d => y(d.v));
+
+  if (!annotate) {
+    // 빠진 값을 건너뛰고 모두 같은 실선으로 이어 그림
+    g.append('path').datum(pts.filter(d => d.v !== null)).attr('d', line)
+      .attr('fill', 'none').attr('stroke', BLUE).attr('stroke-width', 2).attr('stroke-linejoin', 'round');
+    return;
+  }
+
+  // 집계 기준 변경 시점: 점선 세로 기준선
+  g.append('line').attr('x1', x(CHANGE)).attr('x2', x(CHANGE)).attr('y1', 0).attr('y2', iH)
+    .style('stroke', '#777777').style('stroke-width', 1).style('stroke-dasharray', '3,3');
+
+  // 잠정치 구간: 선은 그대로 두고 배경을 옅은 회색으로 칠함 (도입 예시의 기간 띠와 같은 색)
+  const bandX = (x(PROVISIONAL_FROM) + x(PROVISIONAL_FROM + 1)) / 2;
+  g.insert('rect', ':first-child')
+    .attr('x', bandX).attr('y', 0).attr('width', iW + margin.right - bandX).attr('height', iH)
+    .attr('fill', '#eeeeee');
+
+  // 선
+  g.append('path').datum(pts)
+    .attr('d', line.defined(d => d.v !== null))
+    .attr('fill', 'none').attr('stroke', BLUE).attr('stroke-width', 2).attr('stroke-linejoin', 'round');
+
+  label(g, x(CHANGE) + 5, y(0) - 5 - 15, ['4월 이후', '중복 계정 제외'], 'start', false);
+  label(g, (x(11) + x(12)) / 2, y(0) - 5, ['잠정치'], 'middle', false).style('fill', '#888888');
+}
+draw('#before', false);
+draw('#after', true);
+</script>
+</body>
+</html>

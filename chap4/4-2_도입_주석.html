@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>4-2 주석으로 맥락 제공하기</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7.8.5/dist/d3.min.js"></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); --bg: #fff; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #fff; } }
+  :root[data-theme="dark"] { --bg: #fff; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', 'Noto Sans KR', sans-serif; background: var(--bg); padding: 40px 20px; word-break: keep-all; }
+  .container { max-width: 620px; margin: 0; }
+  .compare-wrap { display: flex; gap: 24px; flex-wrap: wrap; }
+  .panel { flex: 1 1 236px; min-width: 0; }
+  .panel-header { font-size: 13px; font-weight: 500; color: #363636; display: flex; align-items: center; gap: 8px;
+    padding-bottom: 8px; margin-bottom: 14px; border-bottom: 1px solid #ddd; }
+  .badge { font-size: 12px; font-weight: 700; border-radius: 4px; padding: 3px 10px; color: #ffffff;
+    letter-spacing: 0.03em; flex-shrink: 0; }
+  .badge-better { background: #37760a; }
+  .badge-worse  { background: #b8351b; }
+  .chart-title { font-size: 15px; line-height: 21px; font-weight: 700; color: #1a1a1a; }
+  .chart-sub { font-size: 12px; line-height: 16px; color: #777777; margin-top: 2px; margin-bottom: 8px; }
+  .sub { margin-bottom: 14px; }
+  .source { font-size: 13px; line-height: 17px; color: #777777; margin-top: 18px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="compare-wrap">
+    <div class="panel">
+      <div class="panel-header"><span class="badge badge-worse">Before</span><span>주석 없음</span></div>
+      <div class="sub" id="before">
+        <p class="chart-title">서비스 A의 일별 접속자 수</p>
+        <p class="chart-sub">2~4월, 단위: 천 명</p>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="badge badge-better">After</span><span>급감한 구간에 사건을 표시</span></div>
+      <div class="sub" id="after">
+        <p class="chart-title">서비스 A의 일별 접속자 수</p>
+        <p class="chart-sub">2~4월, 단위: 천 명</p>
+      </div>
+    </div>
+  </div>
+  <p class="source">서비스 A의 일별 접속자 수, 예시 데이터. 두 차트는 같은 데이터를 사용하고 주석만 다릅니다.</p>
+</div>
+<script>
+const FONT = "'Pretendard','Noto Sans KR',sans-serif";
+const W = 298, H = 170;
+const margin = { top: 12, right: 8, bottom: 24, left: 30 };
+const iW = W - margin.left - margin.right, iH = H - margin.top - margin.bottom;
+const BLUE = '#0b66d6';
+
+// 예시 데이터: 2월 1일~4월 30일 일별 접속자 수(천 명).
+// 평일보다 주말이 조금 낮고, 3월 10~16일은 서비스 점검으로 접속이 중단된 상황
+const START = new Date(2026, 1, 1), END = new Date(2026, 3, 30);
+const OUT_START = new Date(2026, 2, 10), OUT_END = new Date(2026, 2, 16);
+const DATA = d3.timeDays(START, d3.timeDay.offset(END, 1)).map((t, i) => {
+  const weekend = t.getDay() === 0 || t.getDay() === 6;
+  const noise = Math.sin(i * 1.7) * 0.5 + Math.sin(i * 0.37) * 0.4;
+  let v = 11 + i * 0.012 + (weekend ? -1.8 : 0) + noise;
+  if (t >= OUT_START && t <= OUT_END) v = 0;
+  return { t, v: Math.round(v * 10) / 10 };
+});
+
+const x = d3.scaleTime().domain([START, END]).range([0, iW]);
+const y = d3.scaleLinear().domain([0, 15]).range([iH, 0]);
+const yTicks = [0, 5, 10, 15];
+
+function draw(sel, annotate) {
+  const svg = d3.select(sel).append('svg').attr('width', W).attr('height', H);
+  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+  // 점검 기간: 옅은 세로 띠
+  if (annotate) {
+    g.append('rect')
+      .attr('x', x(OUT_START)).attr('y', 0)
+      .attr('width', x(d3.timeDay.offset(OUT_END, 1)) - x(OUT_START)).attr('height', iH)
+      .attr('fill', '#eeeeee');
+  }
+
+  g.selectAll('line.gy').data(yTicks.filter(d => d !== 0)).join('line')
+    .attr('x1', 0).attr('x2', iW).attr('y1', d => y(d)).attr('y2', d => y(d))
+    .style('stroke', '#aaaaaa').style('stroke-dasharray', '2').style('stroke-opacity', 0.4);
+  g.append('line').attr('x1', 0).attr('x2', iW).attr('y1', y(0)).attr('y2', y(0))
+    .style('stroke', '#777777').style('stroke-width', 1);
+  g.append('g').call(d3.axisLeft(y).tickValues(yTicks).tickSize(0).tickPadding(8))
+    .call(a => a.select('.domain').remove())
+    .selectAll('text').style('font-size', '13px').style('fill', '#999999').style('font-family', FONT);
+  g.append('g').attr('transform', `translate(0,${iH})`)
+    .call(d3.axisBottom(x).tickValues([new Date(2026, 1, 1), new Date(2026, 2, 1), new Date(2026, 3, 1)])
+      .tickSize(0).tickPadding(8).tickFormat(d => (d.getMonth() + 1) + '월'))
+    .call(a => a.select('.domain').remove())
+    .selectAll('text').style('font-size', '13px').style('fill', '#999999').style('font-family', FONT)
+    .attr('text-anchor', 'start');
+
+  g.append('path').datum(DATA)
+    .attr('d', d3.line().x(d => x(d.t)).y(d => y(d.v)))
+    .attr('fill', 'none').attr('stroke', BLUE).attr('stroke-width', 1.5).attr('stroke-linejoin', 'round');
+
+  // 주석 글: 띠 오른쪽, 데이터 아래 빈 공간
+  if (annotate) {
+    const tx = x(d3.timeDay.offset(OUT_END, 1)) + 6;
+    const text = g.append('text').attr('x', tx).attr('y', y(5.2))
+      .style('font-size', '12px').style('fill', '#363636').style('font-family', FONT);
+    ['3월 서비스 점검으로', '일주일간 접속 중단'].forEach((s, i) => {
+      text.append('tspan').attr('x', tx).attr('dy', i === 0 ? 0 : 15).text(s);
+    });
+  }
+}
+draw('#before', false);
+draw('#after', true);
+</script>
+</body>
+</html>

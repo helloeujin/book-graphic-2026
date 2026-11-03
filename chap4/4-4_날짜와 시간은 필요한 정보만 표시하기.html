@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>4-4 날짜와 시간은 필요한 정보만 표시하기</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7.8.5/dist/d3.min.js"></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); --bg: #fff; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #fff; } }
+  :root[data-theme="dark"] { --bg: #fff; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', 'Noto Sans KR', sans-serif; background: var(--bg); padding: 40px 20px; word-break: keep-all; }
+  .container { max-width: 620px; margin: 0; }
+  .compare-wrap { display: flex; gap: 24px; flex-wrap: wrap; }
+  .panel { flex: 1 1 236px; min-width: 0; }
+  .panel-header { font-size: 13px; font-weight: 500; color: #363636; display: flex; align-items: center; gap: 8px;
+    padding-bottom: 8px; margin-bottom: 14px; border-bottom: 1px solid #ddd; }
+  .badge { font-size: 12px; font-weight: 700; border-radius: 4px; padding: 3px 10px; color: #ffffff;
+    letter-spacing: 0.03em; flex-shrink: 0; }
+  .badge-better { background: #37760a; }
+  .badge-worse  { background: #b8351b; }
+  .chart-title { font-size: 15px; line-height: 21px; font-weight: 700; color: #1a1a1a; }
+  .chart-sub { font-size: 12px; line-height: 16px; color: #777777; margin-top: 2px; margin-bottom: 8px; }
+  .sub { margin-bottom: 14px; }
+  .source { font-size: 13px; line-height: 17px; color: #777777; margin-top: 18px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="compare-wrap">
+    <div class="panel">
+      <div class="panel-header"><span class="badge badge-worse">Don’t</span><span>저장된 형식 그대로, 연도 반복</span></div>
+      <div class="sub" id="dont">
+        <p class="chart-title">월별 앱 이용자 수</p>
+        <p class="chart-sub">2024년 1월~2025년 12월</p>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="badge badge-better">Do</span><span>연도는 바뀌는 지점에만</span></div>
+      <div class="sub" id="do">
+        <p class="chart-title">월별 앱 이용자 수</p>
+        <p class="chart-sub">2024년 1월~2025년 12월</p>
+      </div>
+    </div>
+  </div>
+  <p class="source">가상 데이터. 두 차트는 같은 데이터와 디자인을 사용하고, 가로축의 날짜 표기만 다릅니다.</p>
+</div>
+<script>
+const FONT = "'Pretendard','Noto Sans KR',sans-serif";
+const W = 298, H = 176;
+const margin = { top: 10, right: 8, bottom: 40, left: 54 };
+const iW = W - margin.left - margin.right, iH = H - margin.top - margin.bottom;
+const BLUE = '#0b66d6';
+
+// 가상 데이터: 2024년 1월~2025년 12월 월별 이용자 수(만 명)
+const VALUES = [62, 60, 66, 70, 74, 78, 84, 86, 76, 72, 70, 74,
+                72, 70, 77, 81, 85, 88, 95, 97, 86, 82, 80, 85];
+const DATA = VALUES.map((v, i) => ({ i, v, year: 2024 + Math.floor(i / 12), month: i % 12 + 1 }));
+
+const x = d3.scaleLinear().domain([0, 23]).range([0, iW]);
+const y = d3.scaleLinear().domain([0, 100]).range([iH, 0]);
+const yTicks = [0, 50, 100];
+const TICKS = [0, 6, 12, 18];   // 2024년 1월, 7월, 2025년 1월, 7월
+
+const area = d3.area().x(d => x(d.i)).y0(iH).y1(d => y(d.v));
+const line = d3.line().x(d => x(d.i)).y(d => y(d.v));
+
+function draw(sel, mode) {
+  const svg = d3.select(sel).append('svg').attr('width', W).attr('height', H);
+  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+  g.selectAll('line.gy').data(yTicks.filter(d => d !== 0)).join('line')
+    .attr('x1', 0).attr('x2', iW).attr('y1', d => y(d)).attr('y2', d => y(d))
+    .style('stroke', '#aaaaaa').style('stroke-dasharray', '2').style('stroke-opacity', 0.4);
+  g.append('g').call(d3.axisLeft(y).tickValues(yTicks).tickSize(0).tickPadding(8)
+      .tickFormat(d => d === 100 ? '100만 명' : d))
+    .call(a => a.select('.domain').remove())
+    .selectAll('text').style('font-size', '13px').style('fill', '#999999').style('font-family', FONT);
+
+  g.append('path').datum(DATA).attr('d', area).attr('fill', BLUE).attr('fill-opacity', 0.15);
+  g.append('path').datum(DATA).attr('d', line)
+    .attr('fill', 'none').attr('stroke', BLUE).attr('stroke-width', 2).attr('stroke-linejoin', 'round');
+  g.append('line').attr('x1', 0).attr('x2', iW).attr('y1', iH).attr('y2', iH)
+    .style('stroke', '#777777').style('stroke-width', 1);
+
+  const ax = g.append('g').attr('transform', `translate(0,${iH})`);
+  TICKS.forEach(i => {
+    const d = DATA[i];
+    const t = ax.append('text').attr('x', x(i)).attr('y', 18)
+      .attr('text-anchor', 'middle')
+      .style('font-size', '13px').style('fill', '#999999').style('font-family', FONT);
+    if (mode === 'raw') {
+      // Don't: 데이터에 저장된 형식(YYYY-MM)을 그대로, 모든 눈금에 연도 반복
+      t.text(`${d.year}-${String(d.month).padStart(2, '0')}`);
+    } else {
+      // Do: 첫 줄은 월, 연도가 바뀌는 1월에만 둘째 줄에 연도
+      t.append('tspan').attr('x', x(i)).text(d.month + '월');
+      if (d.month === 1) t.append('tspan').attr('x', x(i)).attr('dy', 16).text(d.year + '년');
+    }
+    // 연도가 바뀌는 지점에 짧은 눈금선
+    if (mode !== 'raw' && d.month === 1 && i !== 0) {
+      ax.append('line').attr('x1', x(i)).attr('x2', x(i)).attr('y1', 0).attr('y2', 5)
+        .style('stroke', '#777777').style('stroke-width', 1);
+    }
+  });
+}
+draw('#dont', 'raw');
+draw('#do', 'clean');
+</script>
+</body>
+</html>

@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>4-5 숫자 정렬 비교</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7.8.5/dist/d3.min.js"></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); --bg: #fff; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #fff; } }
+  :root[data-theme="dark"] { --bg: #fff; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', 'Noto Sans KR', sans-serif; background: var(--bg); padding: 40px 20px; word-break: keep-all; }
+  .container { max-width: 620px; margin: 0; }
+  .compare-wrap { display: flex; gap: 24px; flex-wrap: wrap; }
+  .panel { flex: 1 1 236px; min-width: 0; }
+  .panel-header { font-size: 13px; font-weight: 500; color: #363636; display: flex; align-items: center; gap: 8px;
+    padding-bottom: 8px; margin-bottom: 14px; border-bottom: 1px solid #ddd; min-height: 33px; }
+  .badge { font-size: 12px; font-weight: 700; border-radius: 4px; padding: 3px 10px; color: #ffffff;
+    letter-spacing: 0.03em; flex-shrink: 0; }
+  .badge-better { background: #37760a; }
+  .badge-worse  { background: #b8351b; }
+  .chart-title { font-size: 15px; line-height: 21px; font-weight: 700; color: #1a1a1a; }
+  .chart-sub { font-size: 13px; line-height: 17px; color: #555555; margin-top: 2px; margin-bottom: 10px; }
+  .chart-src { font-size: 12px; color: #767676; margin-top: 10px; }
+  .source { font-size: 13px; line-height: 17px; color: #777777; margin-top: 18px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="compare-wrap">
+    <div class="panel">
+      <div class="panel-header"><span class="badge badge-worse">Don’t</span><span>이름은 왼쪽 정렬, 숫자는 막대와 떨어짐</span></div>
+      <div id="c1"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="badge badge-better">Do</span><span>이름은 축에 맞추고 숫자는 막대 끝에</span></div>
+      <div id="c2"></div>
+    </div>
+  </div>
+  <p class="source">두 차트는 같은 데이터와 디자인을 사용하고, 나라 이름과 숫자의 정렬만 다릅니다.</p>
+</div>
+<script>
+const FONT = "'Pretendard','Noto Sans KR',sans-serif";
+
+// 가상 데이터: 좁은 숫자(1)와 넓은 숫자(8)를 섞어 차이가 보이도록 구성
+const DATA = [
+  { region: '미국', v: 18404 },
+  { region: '싱가포르', v: 11180 },
+  { region: '독일', v: 8888 },
+  { region: '뉴질랜드', v: 1111 },
+  { region: '스페인', v: 980 },
+];
+// 강조할 항목이 없으므로 모든 막대를 파랑으로
+const BLUE = '#0b66d6';
+const fmt = d3.format(',');
+
+function draw(sel, mode) {
+  const root = d3.select(sel);
+  root.append('p').attr('class', 'chart-title').text('미국의 매출이 가장 컸다');
+  root.append('p').attr('class', 'chart-sub').text('2025년 국가별 매출');
+
+  const W = 298, H = 150;
+  const margin = { top: 4, right: 4, bottom: 2, left: 62 };
+  const valW = mode === 'dont' ? 76 : 0, gapV = mode === 'dont' ? 8 : 82;                      // 값 열의 폭과 막대와의 간격
+  const iW = W - margin.left - margin.right - valW - gapV, iH = H - margin.top - margin.bottom;
+  const x = d3.scaleLinear().domain([0, 18404]).range([0, iW]);
+  const y = d3.scaleBand().domain(DATA.map(d => d.region)).range([0, iH]).padding(0.3);
+
+  const svg = root.append('svg').attr('width', W).attr('height', H);
+  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+  g.selectAll('rect').data(DATA).join('rect')
+    .attr('x', 0).attr('y', d => y(d.region)).attr('width', d => x(d.v)).attr('height', y.bandwidth())
+    .attr('fill', BLUE);
+  g.append('line').attr('x1', 0).attr('x2', 0).attr('y1', 0).attr('y2', iH)
+    .style('stroke', '#777777').style('stroke-width', 1);
+
+  g.selectAll('text.axis').data(DATA).join('text')
+    .attr('x', mode === 'dont' ? -margin.left : -8).attr('y', d => y(d.region) + y.bandwidth() / 2).attr('dy', '0.35em')
+    .attr('text-anchor', mode === 'dont' ? 'start' : 'end')
+    .style('font-family', FONT).style('font-size', '13px').style('fill', '#767676').text(d => d.region);
+
+  // Don't: 막대 오른쪽에 숫자 열을 따로 두고 왼쪽 정렬 / Do: 막대 끝 바로 옆
+  g.selectAll('text.val').data(DATA).join('text')
+    .attr('x', d => mode === 'dont' ? iW + gapV + valW : x(d.v) + 5)
+    .attr('y', d => y(d.region) + y.bandwidth() / 2).attr('dy', '0.35em')
+    .attr('text-anchor', mode === 'dont' ? 'end' : 'start')
+    .style('font-family', FONT).style('font-size', '13px').style('fill', '#363636')
+    .style('font-weight', (d, i) => i === 0 ? 700 : 400)
+    .text((d, i) => fmt(d.v) + (i === 0 ? '억 원' : ''));
+
+  root.append('p').attr('class', 'chart-src').text('출처: 가상 데이터');
+}
+
+draw('#c1', 'dont');
+draw('#c2', 'do');
+</script>
+</body>
+</html>

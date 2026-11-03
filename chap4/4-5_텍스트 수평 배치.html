@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>4-5 텍스트 수평 배치</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7.8.5/dist/d3.min.js"></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); --bg: #fff; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #fff; } }
+  :root[data-theme="dark"] { --bg: #fff; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', 'Noto Sans KR', sans-serif; background: var(--bg); padding: 40px 20px; word-break: keep-all; }
+  .container { max-width: 620px; margin: 0; }
+  .compare-wrap { display: flex; gap: 24px; flex-wrap: wrap; }
+  .panel { flex: 1 1 236px; min-width: 0; }
+  .panel-header { font-size: 13px; font-weight: 500; color: #363636; display: flex; align-items: center; gap: 8px;
+    padding-bottom: 8px; margin-bottom: 14px; border-bottom: 1px solid #ddd; min-height: 33px; }
+  .badge { font-size: 12px; font-weight: 700; border-radius: 4px; padding: 3px 10px; color: #ffffff;
+    letter-spacing: 0.03em; flex-shrink: 0; }
+  .badge-better { background: #37760a; }
+  .badge-worse  { background: #b8351b; }
+  .chart-title { font-size: 15px; line-height: 21px; font-weight: 700; color: #1a1a1a; }
+  .chart-sub { font-size: 13px; line-height: 17px; color: #555555; margin-top: 2px; margin-bottom: 10px; }
+  .chart-src { font-size: 12px; color: #767676; margin-top: 10px; }
+  .source { font-size: 13px; line-height: 17px; color: #777777; margin-top: 18px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="compare-wrap">
+    <div class="panel">
+      <div class="panel-header"><span class="badge badge-worse">Don’t</span><span>단어 중간 줄바꿈, 세로 축 제목</span></div>
+      <div id="dont"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="badge badge-better">Do</span><span>의미 단위 줄바꿈, 수평 축 제목</span></div>
+      <div id="do"></div>
+    </div>
+  </div>
+  <p class="source">두 차트는 같은 데이터와 디자인을 사용하고, 레이블의 줄바꿈 위치와 축 제목의 방향만 다릅니다.</p>
+</div>
+<script>
+const FONT = "'Pretendard','Noto Sans KR',sans-serif";
+
+// 가상 데이터. bad: 도구가 글자 수로 자른 줄바꿈 / good: 의미 단위 줄바꿈
+const DATA = [
+  { v: 132, bad: ['보건 사', '회복지'], good: ['보건', '사회복지'] },
+  { v: 87,  bad: ['정보 통', '신'],     good: ['정보', '통신'] },
+  { v: 54,  bad: ['숙박 음', '식'],     good: ['숙박', '음식'] },
+  { v: 31,  bad: ['전문 과', '학'],     good: ['전문', '과학'] },
+  { v: 12,  bad: ['도매 소', '매'],     good: ['도매', '소매'] },
+];
+const BLUE = '#0b66d6';
+
+function draw(sel, mode) {
+  const root = d3.select(sel);
+  root.append('p').attr('class', 'chart-title').text('보건·사회복지 취업자가 가장 많이 늘었다');
+  root.append('p').attr('class', 'chart-sub').text('2025년 업종별 취업자 증가');
+
+  const W = 298, H = mode === 'do' ? 216 : 200;
+  const m = { top: mode === 'do' ? 34 : 18, right: 4, bottom: 42, left: mode === 'do' ? 4 : 26 };
+  const iW = W - m.left - m.right, iH = H - m.top - m.bottom;
+  const x = d3.scaleBand().domain(d3.range(DATA.length)).range([0, iW]).padding(0.3);
+  const y = d3.scaleLinear().domain([0, 132]).range([iH, 0]);
+  const svg = root.append('svg').attr('width', W).attr('height', H);
+  const g = svg.append('g').attr('transform', `translate(${m.left},${m.top})`);
+
+  g.selectAll('rect').data(DATA).join('rect')
+    .attr('x', (d, i) => x(i)).attr('y', d => y(d.v)).attr('width', x.bandwidth()).attr('height', d => iH - y(d.v))
+    .attr('fill', BLUE);
+  g.append('line').attr('x1', 0).attr('x2', iW).attr('y1', iH).attr('y2', iH)
+    .style('stroke', '#777777').style('stroke-width', 1);
+
+  // 값 레이블
+  g.selectAll('text.val').data(DATA).join('text')
+    .attr('x', (d, i) => x(i) + x.bandwidth() / 2).attr('y', d => y(d.v) - 5).attr('text-anchor', 'middle')
+    .style('font-family', FONT).style('font-size', '13px').style('fill', '#363636')
+    .style('font-weight', (d, i) => i === 0 ? 700 : 400)
+    .text(d => d.v);
+
+  // 항목 이름 (두 줄)
+  DATA.forEach((d, i) => {
+    const lines = mode === 'do' ? d.good : d.bad;
+    const t = g.append('text').attr('x', x(i) + x.bandwidth() / 2).attr('y', iH + 18).attr('text-anchor', 'middle')
+      .style('font-family', FONT).style('font-size', '13px').style('fill', '#767676');
+    lines.forEach((s, k) => t.append('tspan').attr('x', x(i) + x.bandwidth() / 2).attr('dy', k ? 16 : 0).text(s));
+  });
+
+  // 축 제목
+  if (mode === 'do') {
+    svg.append('text').attr('x', m.left).attr('y', 12)
+      .style('font-family', FONT).style('font-size', '12px').style('fill', '#767676').text('단위: 천 명');
+  } else {
+    svg.append('text').attr('transform', `translate(10,${m.top + iH / 2}) rotate(-90)`).attr('text-anchor', 'middle')
+      .style('font-family', FONT).style('font-size', '12px').style('fill', '#767676').text('단위: 천 명');
+  }
+
+  root.append('p').attr('class', 'chart-src').text('출처: 가상 데이터');
+}
+
+draw('#dont', 'dont');
+draw('#do', 'do');
+</script>
+</body>
+</html>

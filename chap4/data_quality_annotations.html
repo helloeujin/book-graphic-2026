@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Data Quality Annotations</title>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet"><link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#fff}@media(prefers-color-scheme:dark){:root{--bg:#fff}}*{box-sizing:border-box}body{margin:0;padding:40px 20px;font-family:Pretendard,'Noto Sans KR',sans-serif;background:var(--bg);word-break:keep-all}.container{max-width:620px}.panel-header{font-size:13px;font-weight:500;color:#363636;padding-bottom:8px;margin-bottom:14px;border-bottom:1px solid #ddd}.chart-title{font-size:15px;line-height:21px;font-weight:700;color:#1a1a1a}.chart-sub{font-size:12px;line-height:16px;color:#777;margin-top:2px;margin-bottom:12px}svg{display:block;width:100%;height:auto;overflow:visible}.axis{font-size:12px;fill:#999}.note-title{font-size:12px;font-weight:700;fill:#363636}.note{font-size:11px;fill:#555}.source{font-size:13px;line-height:18px;color:#777;margin-top:18px}.legend{display:flex;gap:20px;font-size:12px;color:#666;margin-top:4px;align-items:center}.legend-item{display:flex;align-items:center;gap:6px}.sample{width:20px;border-top:2px solid #0b66d6}.sample.dashed{border-top-style:dashed}@media(max-width:450px){body{padding:30px 14px}.note-title{font-size:13px}.note{font-size:12px}}
+</style></head><body><div class="container"><div class="panel-header">데이터 자체의 주의사항 알려주기</div><p class="chart-title">월별 서비스 이용자 수</p><p class="chart-sub">가상 데이터 · 단위: 천 명 · 1~12월</p><svg viewBox="0 0 620 335" role="img" aria-label="월별 이용자 수 예시. 4월 집계 기준 변경, 7월 결측, 11월부터 잠정치가 표시된 선 그래프">
+<line x1="42" x2="606" y1="243.1" y2="243.1" stroke="#aaa" stroke-opacity=".4" stroke-dasharray="2 3"/>
+<text x="32" y="247.1" text-anchor="end" class="axis">80</text>
+<line x1="42" x2="606" y1="189.4" y2="189.4" stroke="#aaa" stroke-opacity=".4" stroke-dasharray="2 3"/>
+<text x="32" y="193.4" text-anchor="end" class="axis">100</text>
+<line x1="42" x2="606" y1="135.7" y2="135.7" stroke="#aaa" stroke-opacity=".4" stroke-dasharray="2 3"/>
+<text x="32" y="139.7" text-anchor="end" class="axis">120</text>
+<line x1="42" x2="606" y1="82.0" y2="82.0" stroke="#aaa" stroke-opacity=".4" stroke-dasharray="2 3"/>
+<text x="32" y="86.0" text-anchor="end" class="axis">140</text>
+<text x="42.0" y="293" text-anchor="middle" class="axis">1월</text>
+<text x="93.3" y="293" text-anchor="middle" class="axis">2월</text>
+<text x="144.5" y="293" text-anchor="middle" class="axis">3월</text>
+<text x="195.8" y="293" text-anchor="middle" class="axis">4월</text>
+<text x="247.1" y="293" text-anchor="middle" class="axis">5월</text>
+<text x="298.4" y="293" text-anchor="middle" class="axis">6월</text>
+<text x="349.6" y="293" text-anchor="middle" class="axis">7월</text>
+<text x="400.9" y="293" text-anchor="middle" class="axis">8월</text>
+<text x="452.2" y="293" text-anchor="middle" class="axis">9월</text>
+<text x="503.5" y="293" text-anchor="middle" class="axis">10월</text>
+<text x="554.7" y="293" text-anchor="middle" class="axis">11월</text>
+<text x="606.0" y="293" text-anchor="middle" class="axis">12월</text>
+<line x1="195.8" x2="195.8" y1="77" y2="270" stroke="#888" stroke-dasharray="3 4"/>
+<path d="M42.0,141.1 L93.3,127.7 L144.5,114.2 L195.8,205.5 L247.1,197.5 L298.4,181.4" fill="none" stroke="#0b66d6" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M400.9,165.3 L452.2,154.5 L503.5,146.5 L554.7,135.7" fill="none" stroke="#0b66d6" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M554.7,135.7 L606.0,127.7" fill="none" stroke="#0b66d6" stroke-width="2.6" stroke-dasharray="5 5" stroke-linecap="round"/>
+<circle cx="42.0" cy="141.1" r="3" fill="#0b66d6" stroke="#0b66d6" stroke-width="1.6"/>
+<circle cx="93.3" cy="127.7" r="3" fill="#0b66d6" stroke="#0b66d6" stroke-width="1.6"/>
+<circle cx="144.5" cy="114.2" r="3" fill="#0b66d6" stroke="#0b66d6" stroke-width="1.6"/>
+<circle cx="195.8" cy="205.5" r="3" fill="#0b66d6" stroke="#0b66d6" stroke-width="1.6"/>
+<circle cx="247.1" cy="197.5" r="3" fill="#0b66d6" stroke="#0b66d6" stroke-width="1.6"/>
+<circle cx="298.4" cy="181.4" r="3" fill="#0b66d6" stroke="#0b66d6" stroke-width="1.6"/>
+<circle cx="400.9" cy="165.3" r="3" fill="#0b66d6" stroke="#0b66d6" stroke-width="1.6"/>
+<circle cx="452.2" cy="154.5" r="3" fill="#0b66d6" stroke="#0b66d6" stroke-width="1.6"/>
+<circle cx="503.5" cy="146.5" r="3" fill="#0b66d6" stroke="#0b66d6" stroke-width="1.6"/>
+<circle cx="554.7" cy="135.7" r="3" fill="#fff" stroke="#0b66d6" stroke-width="1.6"/>
+<circle cx="606.0" cy="127.7" r="3" fill="#fff" stroke="#0b66d6" stroke-width="1.6"/>
+<path d="M 195.8 77 L 195.8 51 L 181 51" fill="none" stroke="#777" stroke-width="1"/>
+<text x="181" y="22" class="note-title">집계 기준 변경</text>
+<text x="181" y="38" class="note">4월부터 중복 계정 제외</text>
+<path d="M 349.6 205 L 349.6 180 L 355 180" fill="none" stroke="#777" stroke-width="1"/>
+<text x="355" y="162" class="note-title">7월 데이터 없음</text>
+<text x="355" y="177" class="note">집계 시스템 오류</text>
+<path d="M 580.4 125.7 L 580.4 52 L 480 52" fill="none" stroke="#777" stroke-width="1"/>
+<text x="480" y="22" class="note-title">잠정치</text>
+<text x="480" y="38" class="note">11~12월 미확정</text>
+</svg><div class="legend"><span class="legend-item"><i class="sample"></i>확정치</span><span class="legend-item"><i class="sample dashed"></i>잠정치</span></div><p class="source">예시용 가상 데이터. 4월부터 집계 기준이 달라져 전후 수치를 직접 비교하기 어렵습니다. 7월은 결측이며, 11~12월은 잠정치입니다.</p></div></body></html>
