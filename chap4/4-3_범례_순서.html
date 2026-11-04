@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>4-3 범례를 쓸 때</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7.8.5/dist/d3.min.js"></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); --bg: #fff; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #fff; } }
+  :root[data-theme="dark"] { --bg: #fff; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', 'Noto Sans KR', sans-serif; background: var(--bg); padding: 40px 20px; word-break: keep-all; }
+  .container { max-width: 620px; margin: 0; }
+  .compare-wrap { display: flex; gap: 24px; flex-wrap: wrap; }
+  .panel { flex: 1 1 236px; min-width: 0; }
+  .panel-header { font-size: 13px; font-weight: 500; color: #363636; display: flex; align-items: center; gap: 8px;
+    padding-bottom: 8px; margin-bottom: 14px; border-bottom: 1px solid #ddd; }
+  .badge { font-size: 12px; font-weight: 700; border-radius: 4px; padding: 3px 10px; color: #ffffff;
+    letter-spacing: 0.03em; flex-shrink: 0; }
+  .badge-better { background: #37760a; }
+  .badge-worse  { background: #b8351b; }
+  .chart-title { font-size: 15px; line-height: 21px; font-weight: 700; color: #1a1a1a; }
+  .chart-sub { font-size: 12px; line-height: 16px; color: #777777; margin-top: 2px; margin-bottom: 8px; }
+  .sub { margin-bottom: 14px; }
+  .legend { display: flex; gap: 6px 14px; flex-wrap: wrap; margin-top: 22px; }
+  .legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; line-height: 13px; color: #363636; }
+  .legend-item i { width: 10px; height: 10px; display: inline-block; }
+  .source { font-size: 13px; line-height: 17px; color: #777777; margin-top: 18px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="compare-wrap">
+    <div class="panel">
+      <div class="panel-header"><span class="badge badge-worse">Don’t</span><span>범례가 멀고 순서가 다름</span></div>
+      <div class="sub" id="far">
+        <p class="chart-title">유입 경로별 방문자 수</p>
+        <p class="chart-sub">2020~2025년, 단위: 만 명</p>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="badge badge-better">Do</span><span>범례를 가까이, 쌓인 순서대로</span></div>
+      <div class="sub" id="near">
+        <p class="chart-title">유입 경로별 방문자 수</p>
+        <p class="chart-sub">2020~2025년, 단위: 만 명</p>
+      </div>
+    </div>
+  </div>
+  <p class="source">웹사이트 유입 경로별 연간 방문자 수, 예시 데이터. 두 차트는 같은 데이터를 사용하고 범례의 위치와 순서만 다릅니다.</p>
+</div>
+<script>
+const FONT = "'Pretendard','Noto Sans KR',sans-serif";
+const W = 298, H = 180;
+const margin = { top: 12, right: 8, bottom: 24, left: 36 };
+
+// 예시 데이터: 유입 경로별 방문자 수(만 명). 배열 순서 = 아래에서 위로 쌓이는 순서
+const YEARS = d3.range(2020, 2026);
+const SERIES = [
+  { k: '검색',        c: '#0b66d6', v: [40, 42, 43, 41, 40, 38] },
+  { k: '소셜 미디어', c: '#c95c03', v: [10, 14, 18, 22, 26, 30] },
+  { k: '직접 방문',   c: '#1a9c8c', v: [15, 15, 16, 16, 17, 17] },
+  { k: '이메일',      c: '#7b5cc4', v: [6, 6, 5, 5, 4, 4] },
+  { k: '기타',        c: '#bbbbbb', v: [3, 3, 3, 4, 4, 4] }
+];
+const rows = YEARS.map((yr, i) => { const o = { yr }; SERIES.forEach(s => o[s.k] = s.v[i]); return o; });
+const stack = d3.stack().keys(SERIES.map(s => s.k))(rows);
+
+const iH = H - margin.top - margin.bottom;
+const y = d3.scaleLinear().domain([0, 100]).range([iH, 0]);
+const yTicks = [0, 50, 100];
+
+function draw(sel, near) {
+  const iW = W - margin.left - (near ? 98 : margin.right);
+  const x = d3.scaleLinear().domain([2020, 2025]).range([0, iW]);
+  const svg = d3.select(sel).append('svg').attr('width', W).attr('height', H);
+  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+  const area = d3.area().x(d => x(d.data.yr)).y0(d => y(d[0])).y1(d => y(d[1]));
+  stack.forEach((layer, i) => g.append('path').datum(layer).attr('d', area)
+    .attr('fill', SERIES[i].c).attr('stroke', '#ffffff').attr('stroke-width', 0.75));
+
+  g.selectAll('line.gy').data(yTicks.filter(d => d !== 0)).join('line')
+    .attr('x1', 0).attr('x2', iW).attr('y1', d => y(d)).attr('y2', d => y(d))
+    .style('stroke', '#aaaaaa').style('stroke-dasharray', '2').style('stroke-opacity', 0.4);
+  g.append('line').attr('x1', 0).attr('x2', iW).attr('y1', y(0)).attr('y2', y(0))
+    .style('stroke', '#777777').style('stroke-width', 1);
+  g.append('g').call(d3.axisLeft(y).tickValues(yTicks).tickSize(0).tickPadding(8))
+    .call(a => a.select('.domain').remove())
+    .selectAll('text').style('font-size', '13px').style('fill', '#999999').style('font-family', FONT);
+  g.append('g').attr('transform', `translate(0,${iH})`)
+    .call(d3.axisBottom(x).tickValues([2020, 2025]).tickSize(0).tickPadding(8).tickFormat(d3.format('d')))
+    .call(a => a.select('.domain').remove())
+    .selectAll('text').style('font-size', '13px').style('fill', '#999999').style('font-family', FONT)
+    .attr('text-anchor', d => d === 2020 ? 'start' : 'end');
+
+  if (!near) {
+    // 도구 기본값처럼: 차트 아래, 데이터를 넣은 순서(아래 층부터)로 나열
+    const lg = d3.select(sel).append('div').attr('class', 'legend');
+    SERIES.forEach(s => {
+      const it = lg.append('span').attr('class', 'legend-item');
+      it.append('i').style('background', s.c);
+      it.node().append(s.k);
+    });
+    return;
+  }
+
+  // 차트 바로 오른쪽에, 위에서 아래로 쌓인 순서 그대로
+  const lx = iW + 12;
+  SERIES.slice().reverse().forEach((s, i) => {
+    const ly = 4 + i * 18;
+    g.append('rect').attr('x', lx).attr('y', ly).attr('width', 10).attr('height', 10).attr('fill', s.c);
+    g.append('text').attr('x', lx + 16).attr('y', ly + 5).attr('dy', '0.34em')
+      .style('font-size', '13px').style('fill', '#363636').style('font-family', FONT).text(s.k);
+  });
+}
+draw('#far', false);
+draw('#near', true);
+</script>
+</body>
+</html>

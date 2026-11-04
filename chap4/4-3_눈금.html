@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>4-3 눈금은 필요한 만큼</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7.8.5/dist/d3.min.js"></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); --bg: #fff; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #fff; } }
+  :root[data-theme="dark"] { --bg: #fff; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', 'Noto Sans KR', sans-serif; background: var(--bg); padding: 40px 20px; word-break: keep-all; }
+  .container { max-width: 620px; margin: 0; }
+  .compare-wrap { display: flex; gap: 24px; flex-wrap: wrap; }
+  .panel { flex: 1 1 236px; min-width: 0; }
+  .panel-header { font-size: 13px; font-weight: 500; color: #363636; display: flex; align-items: center; gap: 8px;
+    padding-bottom: 8px; margin-bottom: 14px; border-bottom: 1px solid #ddd; }
+  .badge { font-size: 12px; font-weight: 700; border-radius: 4px; padding: 3px 10px; color: #ffffff;
+    letter-spacing: 0.03em; flex-shrink: 0; }
+  .badge-better { background: #37760a; }
+  .badge-worse  { background: #b8351b; }
+  .chart-title { font-size: 15px; line-height: 21px; font-weight: 700; color: #1a1a1a; }
+  .chart-sub { font-size: 12px; line-height: 16px; color: #777777; margin-top: 2px; margin-bottom: 8px; }
+  .sub { margin-bottom: 14px; }
+  .legend { display: flex; gap: 6px 16px; flex-wrap: wrap; margin-top: 8px; }
+  .legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; line-height: 13px; color: #363636; }
+  .legend-item i { width: 14px; height: 2px; display: inline-block; }
+  .source { font-size: 13px; line-height: 17px; color: #777777; margin-top: 18px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="compare-wrap">
+    <div class="panel">
+      <div class="panel-header"><span class="badge badge-worse">Don’t</span><span>어색한 간격의 촘촘한 눈금</span></div>
+      <div class="sub" id="dense">
+        <p class="chart-title">2025년 서울의 하루 최저기온</p>
+        <p class="chart-sub">최저기온별 날의 수, 5°C 간격</p>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="badge badge-better">Do</span><span>깔끔한 간격으로 필요한 만큼</span></div>
+      <div class="sub" id="clean">
+        <p class="chart-title">2025년 서울의 하루 최저기온</p>
+        <p class="chart-sub">최저기온별 날의 수, 5°C 간격</p>
+      </div>
+    </div>
+  </div>
+  <p class="source">서울(108) 일 최저기온, 2025년 1월 1일~12월 31일(365일). 출처: 기상청 기상자료개방포털. 두 차트는 같은 데이터를 사용하고 눈금과 격자선만 다릅니다.</p>
+</div>
+<script>
+const FONT = "'Pretendard','Noto Sans KR',sans-serif";
+const W = 298, H = 180;
+const margin = { top: 12, right: 18, bottom: 24, left: 34 };
+const iW = W - margin.left - margin.right, iH = H - margin.top - margin.bottom;
+const BLUE = '#0b66d6';
+
+// 기상청 ASOS 서울(108) 2025년 일 최저기온을 5°C 구간으로 나눈 날의 수(구간 시작값 이상, 끝값 미만)
+const BINS = [
+  { x0: -15, n: 8 }, { x0: -10, n: 31 }, { x0: -5, n: 42 }, { x0: 0, n: 53 }, { x0: 5, n: 47 },
+  { x0: 10, n: 35 }, { x0: 15, n: 50 }, { x0: 20, n: 54 }, { x0: 25, n: 45 }
+];
+
+const x = d3.scaleLinear().domain([-15, 30]).range([0, iW]);
+
+function draw(sel, dense) {
+  // Don't: 7일 간격(촘촘하고 어색한 간격), 모든 구간 경계에 기온 표시
+  // Do: 20일 간격, 10°C 간격
+  const y = d3.scaleLinear().domain([0, dense ? 63 : 60]).range([iH, 0]);
+  const yTicks = dense ? d3.range(0, 64, 7) : [0, 20, 40, 60];
+  const yTop = yTicks[yTicks.length - 1];
+  const xTicks = dense ? d3.range(-15, 31, 5) : [-10, 0, 10, 20, 30];
+  const svg = d3.select(sel).append('svg').attr('width', W).attr('height', H);
+  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+  // 격자선
+  g.selectAll('line.gy').data(yTicks.filter(d => d !== 0)).join('line')
+    .attr('x1', 0).attr('x2', iW).attr('y1', d => y(d)).attr('y2', d => y(d))
+    .style('stroke', '#aaaaaa').style('stroke-dasharray', '2').style('stroke-opacity', 0.4);
+  if (dense) {
+    g.selectAll('line.gx').data(xTicks).join('line')
+      .attr('x1', d => x(d)).attr('x2', d => x(d)).attr('y1', 0).attr('y2', iH)
+      .style('stroke', '#aaaaaa').style('stroke-dasharray', '2').style('stroke-opacity', 0.4);
+  }
+
+  g.selectAll('rect').data(BINS).join('rect')
+    .attr('x', d => x(d.x0) + 0.5).attr('width', d => x(d.x0 + 5) - x(d.x0) - 1)
+    .attr('y', d => y(d.n)).attr('height', d => iH - y(d.n)).attr('fill', BLUE);
+
+  g.append('line').attr('x1', 0).attr('x2', iW).attr('y1', iH).attr('y2', iH)
+    .style('stroke', '#777777').style('stroke-width', 1);
+  g.append('g').call(d3.axisLeft(y).tickValues(yTicks).tickSize(0).tickPadding(6)
+      .tickFormat(d => d === yTop ? d + '일' : d))
+    .call(a => a.select('.domain').remove())
+    .selectAll('text').style('font-size', '13px').style('fill', '#999999').style('font-family', FONT);
+  g.append('g').attr('transform', `translate(0,${iH})`)
+    .call(d3.axisBottom(x).tickValues(xTicks).tickSize(0).tickPadding(8)
+      .tickFormat(d => d === 30 ? '30°C' : (d < 0 ? '−' + Math.abs(d) : d)))
+    .call(a => a.select('.domain').remove())
+    .selectAll('text').style('font-size', '13px').style('fill', '#999999').style('font-family', FONT);
+}
+draw('#dense', true);
+draw('#clean', false);
+</script>
+</body>
+</html>

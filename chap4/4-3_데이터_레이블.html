@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>4-3 값을 직접 표시할지 정하기</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7.8.5/dist/d3.min.js"></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); --bg: #fff; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #fff; } }
+  :root[data-theme="dark"] { --bg: #fff; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', 'Noto Sans KR', sans-serif; background: var(--bg); padding: 40px 20px; word-break: keep-all; }
+  .container { max-width: 620px; margin: 0; }
+  .compare-wrap { display: flex; gap: 24px; flex-wrap: wrap; }
+  .panel { flex: 1 1 236px; min-width: 0; }
+  .panel-header { font-size: 13px; font-weight: 500; color: #363636; display: flex; align-items: center; gap: 8px;
+    padding-bottom: 8px; margin-bottom: 14px; border-bottom: 1px solid #ddd; }
+  .badge { font-size: 12px; font-weight: 700; border-radius: 4px; padding: 3px 10px; color: #ffffff;
+    letter-spacing: 0.03em; flex-shrink: 0; }
+  .badge-better { background: #37760a; }
+  .badge-worse  { background: #b8351b; }
+  .chart-title { font-size: 15px; line-height: 21px; font-weight: 700; color: #1a1a1a; }
+  .chart-sub { font-size: 12px; line-height: 16px; color: #777777; margin-top: 2px; margin-bottom: 8px; }
+  .sub { margin-bottom: 14px; }
+  .legend { display: flex; gap: 6px 16px; flex-wrap: wrap; margin-top: 8px; }
+  .legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; line-height: 13px; color: #363636; }
+  .legend-item i { width: 14px; height: 2px; display: inline-block; }
+  .source { font-size: 13px; line-height: 17px; color: #777777; margin-top: 18px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="compare-wrap">
+    <div class="panel">
+      <div class="panel-header"><span class="badge badge-worse">Don’t</span><span>모든 값과 촘촘한 눈금을 함께 표시</span></div>
+      <div class="sub" id="all">
+        <p class="chart-title">서울의 월별 강수량</p>
+        <p class="chart-sub">1991~2020년 평년값, 단위: mm</p>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="badge badge-better">Do</span><span>눈금은 성기게, 중요한 값만 표시</span></div>
+      <div class="sub" id="key">
+        <p class="chart-title">서울의 월별 강수량</p>
+        <p class="chart-sub">1991~2020년 평년값, 단위: mm</p>
+      </div>
+    </div>
+  </div>
+  <p class="source">서울(108) 월별 강수량 평년값(1991~2020년). 출처: 기상청 기상자료개방포털.</p>
+</div>
+<script>
+const FONT = "'Pretendard','Noto Sans KR',sans-serif";
+const W = 298, H = 190;
+const BLUE = '#0b66d6';
+
+// 기상청 서울(108) 월별 강수량 평년값 1991~2020년(mm)
+const RAIN = [16.8, 28.2, 36.9, 72.9, 103.6, 129.5, 414.4, 348.2, 141.5, 52.2, 51.1, 22.6];
+const MONTHS = d3.range(1, 13);
+
+function draw(sel, all) {
+  const margin = { top: 18, right: 4, bottom: 24, left: 30 };
+  const iW = W - margin.left - margin.right, iH = H - margin.top - margin.bottom;
+  const x = d3.scaleBand().domain(MONTHS).range([0, iW]).padding(0.25);
+  const y = d3.scaleLinear().domain([0, all ? 450 : 500]).range([iH, 0]);
+  const svg = d3.select(sel).append('svg').attr('width', W).attr('height', H);
+  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+  {
+    // Don't는 50mm, Do는 100mm 간격 눈금과 격자선
+    const t = all ? d3.range(50, 451, 50) : d3.range(100, 501, 100);
+    g.selectAll('line.gy').data(t).join('line')
+      .attr('x1', 0).attr('x2', iW).attr('y1', d => y(d)).attr('y2', d => y(d))
+      .style('stroke', '#aaaaaa').style('stroke-dasharray', '2').style('stroke-opacity', 0.4);
+    g.append('g').call(d3.axisLeft(y).tickValues([0, ...t]).tickSize(0).tickPadding(6))
+      .call(a => a.select('.domain').remove())
+      .selectAll('text').style('font-size', all ? '11px' : '13px').style('fill', '#999999').style('font-family', FONT);
+  }
+
+  g.selectAll('rect').data(RAIN).join('rect')
+    .attr('x', (d, i) => x(MONTHS[i])).attr('width', x.bandwidth())
+    .attr('y', d => y(d)).attr('height', d => iH - y(d)).attr('fill', BLUE);
+
+  // 0 기준선은 두 차트 모두 유지
+  g.append('line').attr('x1', 0).attr('x2', iW).attr('y1', iH).attr('y2', iH)
+    .style('stroke', '#777777').style('stroke-width', 1);
+  g.append('g').attr('transform', `translate(0,${iH})`)
+    .call(d3.axisBottom(x).tickValues([1, 4, 7, 10]).tickSize(0).tickPadding(8).tickFormat(d => d + '월'))
+    .call(a => a.select('.domain').remove())
+    .selectAll('text').style('font-size', '13px').style('fill', '#999999').style('font-family', FONT);
+
+  const lab = (i, s, size, weight) => g.append('text')
+    .attr('x', x(MONTHS[i]) + x.bandwidth() / 2).attr('y', y(RAIN[i]) - 4).attr('text-anchor', 'middle')
+    .style('font-size', size).style('font-weight', weight).style('fill', '#363636').style('font-family', FONT).text(s);
+
+  if (all) {
+    RAIN.forEach((d, i) => lab(i, Math.round(d), '11px', 400));
+  } else {
+    // 7월과 8월만 값 표시
+    // 7월만 주석으로 표시
+    const i = 6;
+    const t = g.append('text').attr('x', x(MONTHS[i]) + x.bandwidth() / 2).attr('y', y(RAIN[i]) - 6)
+      .attr('text-anchor', 'middle').style('font-size', '12px').style('fill', '#363636').style('font-family', FONT);
+    t.append('tspan').text('7월 ');
+    t.append('tspan').style('font-weight', 700).text(RAIN[i] + 'mm');
+  }
+}
+draw('#all', true);
+draw('#key', false);
+</script>
+</body>
+</html>

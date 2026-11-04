@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>4-2 주석은 필요한 만큼만 사용하기</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7.8.5/dist/d3.min.js"></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); --bg: #fff; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #fff; } }
+  :root[data-theme="dark"] { --bg: #fff; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', 'Noto Sans KR', sans-serif; background: var(--bg); padding: 40px 20px; word-break: keep-all; }
+  .container { max-width: 620px; margin: 0; }
+  .compare-wrap { display: flex; gap: 24px; flex-wrap: wrap; }
+  .panel { flex: 1 1 236px; min-width: 0; }
+  .panel-header { font-size: 13px; font-weight: 500; color: #363636; display: flex; align-items: center; gap: 8px;
+    padding-bottom: 8px; margin-bottom: 14px; border-bottom: 1px solid #ddd; }
+  .badge { font-size: 12px; font-weight: 700; border-radius: 4px; padding: 3px 10px; color: #ffffff;
+    letter-spacing: 0.03em; flex-shrink: 0; }
+  .badge-better { background: #37760a; }
+  .badge-worse  { background: #b8351b; }
+  .chart-title { font-size: 15px; line-height: 21px; font-weight: 700; color: #1a1a1a; }
+  .chart-sub { font-size: 12px; line-height: 16px; color: #777777; margin-top: 2px; margin-bottom: 8px; }
+  .sub { margin-bottom: 14px; }
+  .source { font-size: 13px; line-height: 17px; color: #777777; margin-top: 18px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="compare-wrap">
+    <div class="panel">
+      <div class="panel-header"><span class="badge badge-worse">Don’t</span><span>오르내릴 때마다 주석을 붙임</span></div>
+      <div class="sub" id="many">
+        <p class="chart-title">2025년 여름, 서울의 하루 최저기온</p>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="badge badge-better">Do</span><span>꼭 필요한 주석만 남김</span></div>
+      <div class="sub" id="few">
+        <p class="chart-title">2025년 여름, 서울의 하루 최저기온</p>
+      </div>
+    </div>
+  </div>
+  <p class="source">서울(108) 일 최저기온, 2025년 7월 1일~8월 31일. 출처: 기상청 기상자료개방포털. 두 차트는 같은 데이터를 사용하고 주석의 양만 다릅니다.</p>
+</div>
+<script>
+const FONT = "'Pretendard','Noto Sans KR',sans-serif";
+const W = 298, H = 180;
+const margin = { top: 16, right: 12, bottom: 24, left: 42 };
+const iW = W - margin.left - margin.right, iH = H - margin.top - margin.bottom;
+const BLUE = '#0b66d6';
+
+// 기상청 ASOS 서울(108) 2025년 7월 1일~8월 31일 일 최저기온(°C)
+const TEMPS = [26.2, 26.8, 26.5, 25.7, 26.0, 26.3, 26.7, 26.9, 27.4, 27.3, 24.6, 24.4, 25.6, 21.7, 21.5, 22.2,
+  22.0, 22.9, 21.9, 25.0, 25.6, 26.6, 25.5, 25.8, 25.6, 27.6, 28.3, 28.8, 27.6, 28.3, 29.3,
+  27.8, 27.3, 24.0, 23.7, 25.4, 25.8, 25.4, 23.9, 23.1, 21.0, 25.0, 23.3, 22.0, 24.2, 24.4,
+  25.5, 26.1, 27.0, 26.9, 26.9, 27.4, 26.1, 27.4, 26.9, 26.3, 25.5, 23.6, 24.7, 27.3, 25.8, 25.1];
+const START = new Date(2025, 6, 1);
+const AVG = d3.mean(TEMPS); // 25.51°C
+const DATA = TEMPS.map((v, i) => ({ t: d3.timeDay.offset(START, i), v, i }));
+
+const x = d3.scaleTime().domain([START, new Date(2025, 7, 31)]).range([0, iW]);
+const y = d3.scaleLinear().domain([18, 32]).range([iH, 0]);
+const yTicks = [20, 25, 30];
+
+function draw(sel, many) {
+  // Do 패널만 오른쪽 여백을 넓혀 평균선 레이블 자리를 만듦
+  const iW = W - margin.left - (many ? margin.right : 46);
+  const x = d3.scaleTime().domain([START, new Date(2025, 7, 31)]).range([0, iW]);
+  const svg = d3.select(sel).append('svg').attr('width', W).attr('height', H);
+  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+  g.selectAll('line.gy').data(yTicks).join('line')
+    .attr('x1', 0).attr('x2', iW).attr('y1', d => y(d)).attr('y2', d => y(d))
+    .style('stroke', '#aaaaaa').style('stroke-dasharray', '2').style('stroke-opacity', 0.4);
+  g.append('g').call(d3.axisLeft(y).tickValues(yTicks).tickSize(0).tickPadding(8).tickFormat(d => d === 30 ? '30°C' : d))
+    .call(a => a.select('.domain').remove())
+    .selectAll('text').style('font-size', '13px').style('fill', '#999999').style('font-family', FONT);
+  g.append('g').attr('transform', `translate(0,${iH})`)
+    .call(d3.axisBottom(x).tickValues([new Date(2025, 6, 1), new Date(2025, 7, 1)])
+      .tickSize(0).tickPadding(8).tickFormat(d => (d.getMonth() + 1) + '월'))
+    .call(a => a.select('.domain').remove())
+    .selectAll('text').style('font-size', '13px').style('fill', '#999999').style('font-family', FONT)
+    .attr('text-anchor', 'start');
+
+  const txt = (x0, y0, s, anchor, color) => g.append('text').attr('x', x0).attr('y', y0).attr('text-anchor', anchor || 'middle')
+    .style('font-size', '12px').style('fill', color || '#363636').style('font-family', FONT)
+    .style('paint-order', 'stroke').style('stroke', '#ffffff').style('stroke-width', 3).text(s);
+  const dot = d => g.append('circle').attr('cx', x(d.t)).attr('cy', y(d.v)).attr('r', 3.5)
+    .attr('fill', BLUE).attr('stroke', '#ffffff').attr('stroke-width', 1.5);
+
+  if (!many) {
+    // 7~8월 평균 최저기온 선
+    g.append('line').attr('x1', 0).attr('x2', iW).attr('y1', y(AVG)).attr('y2', y(AVG))
+      .style('stroke', '#666666').style('stroke-width', 1).style('stroke-dasharray', '3,3');
+  }
+
+  g.append('path').datum(DATA)
+    .attr('d', d3.line().x(d => x(d.t)).y(d => y(d.v)))
+    .attr('fill', 'none').attr('stroke', BLUE).attr('stroke-width', 1.5).attr('stroke-linejoin', 'round');
+
+  if (many) {
+    // 오르내릴 때마다 주석을 붙인 경우
+    const at = i => DATA[i];
+    [8, 14, 30, 40, 51].forEach(i => dot(at(i)));
+    txt(x(at(8).t), y(at(8).v) - 9, '27.4°C');
+    txt(x(at(14).t), y(at(14).v) + 17, '21.5°C');
+    txt(x(at(11).t) + 2, y(23.2), '하락', 'end');
+    txt(x(at(20).t), y(28), '다시 상승');
+    txt(x(at(30).t), y(at(30).v) - 9, '29.3°C');
+    txt(x(at(40).t), y(at(40).v) + 17, '21.0°C');
+    txt(x(at(51).t), y(at(51).v) - 9, '27.4°C');
+    txt(x(at(57).t) + 4, y(21.6), '다시 하락', 'end');
+    return;
+  }
+
+  // 꼭 필요한 주석: 선만으로는 알 수 없는 기준(평균)과 그 값
+  // 선 오른쪽 끝 바깥 여백에 두어 데이터와 겹치지 않게 함
+  const lab = txt(iW + 6, y(AVG) - 4, '', 'start');
+  lab.append('tspan').attr('x', iW + 6).text('평균');
+  lab.append('tspan').attr('x', iW + 6).attr('dy', 14).style('font-weight', 700).text(AVG.toFixed(1) + '°C');
+}
+draw('#many', true);
+draw('#few', false);
+</script>
+</body>
+</html>

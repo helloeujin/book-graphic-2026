@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>4-3 범례와 직접 레이블</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7.8.5/dist/d3.min.js"></script>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); --bg: #fff; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #fff; } }
+  :root[data-theme="dark"] { --bg: #fff; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', 'Noto Sans KR', sans-serif; background: var(--bg); padding: 40px 20px; word-break: keep-all; }
+  .container { max-width: 620px; margin: 0; }
+  .compare-wrap { display: flex; gap: 24px; flex-wrap: wrap; }
+  .panel { flex: 1 1 236px; min-width: 0; }
+  .panel-header { font-size: 13px; font-weight: 500; color: #363636; display: flex; align-items: center; gap: 8px;
+    padding-bottom: 8px; margin-bottom: 14px; border-bottom: 1px solid #ddd; }
+  .badge { font-size: 12px; font-weight: 700; border-radius: 4px; padding: 3px 10px; color: #ffffff;
+    letter-spacing: 0.03em; flex-shrink: 0; }
+  .badge-better { background: #37760a; }
+  .badge-worse  { background: #b8351b; }
+  .chart-title { font-size: 15px; line-height: 21px; font-weight: 700; color: #1a1a1a; }
+  .chart-sub { font-size: 12px; line-height: 16px; color: #777777; margin-top: 2px; margin-bottom: 8px; }
+  .sub { margin-bottom: 14px; }
+  .legend { display: flex; gap: 6px 16px; flex-wrap: wrap; margin-top: 8px; }
+  .legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; line-height: 13px; color: #363636; }
+  .legend-item i { width: 14px; height: 2px; display: inline-block; }
+  .source { font-size: 13px; line-height: 17px; color: #777777; margin-top: 18px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="compare-wrap">
+    <div class="panel">
+      <div class="panel-header"><span class="badge badge-worse">Before</span><span>범례로 구분</span></div>
+      <div class="sub" id="legend">
+        <p class="chart-title">한국, 일본, 미국의 실업률</p>
+        <p class="chart-sub">2015~2025년 연평균</p>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="badge badge-better">After</span><span>선 끝에 이름을 직접 표시</span></div>
+      <div class="sub" id="direct">
+        <p class="chart-title">한국, 일본, 미국의 실업률</p>
+        <p class="chart-sub">2015~2025년 연평균</p>
+      </div>
+    </div>
+  </div>
+  <p class="source">15세 이상 실업률(계절조정 전 연평균). 출처: OECD, FRED. 2025년 미국은 10월 자료가 빠진 평균입니다.</p>
+</div>
+<script>
+const FONT = "'Pretendard','Noto Sans KR',sans-serif";
+const W = 298, H = 170;
+const margin = { top: 12, right: 12, bottom: 24, left: 36 };
+
+// OECD Infra-Annual Labor Statistics, 15세 이상 실업률(%) 연평균, FRED
+// 한국 LRUNTTTTKRA156N, 일본 LRUNTTTTJPA156N, 미국 LRUNTTTTUSA156N
+const YEARS = d3.range(2015, 2026);
+// 3-4 예시와 같은 범주형 색(흰 배경과 3:1 이상 대비)
+const SERIES = [
+  { k: '미국', c: '#8a8a8a', v: [5.29, 4.87, 4.35, 3.90, 3.67, 8.09, 5.37, 3.65, 3.63, 4.02, 4.29] },
+  { k: '한국', c: '#0b66d6', v: [3.59, 3.68, 3.68, 3.83, 3.78, 3.94, 3.68, 2.88, 2.71, 2.80, 2.79] },
+  { k: '일본', c: '#c95c03', v: [3.38, 3.12, 2.81, 2.44, 2.35, 2.78, 2.82, 2.60, 2.57, 2.55, 2.51] }
+];
+
+const y = d3.scaleLinear().domain([0, 10]).range([H - margin.top - margin.bottom, 0]);
+const yTicks = [0, 5, 10];
+
+function draw(sel, direct) {
+  const iW = W - margin.left - (direct ? 36 : 20);
+  const iH = H - margin.top - margin.bottom;
+  const x = d3.scaleLinear().domain([2015, 2025]).range([0, iW]);
+
+  const svg = d3.select(sel).append('svg').attr('width', W).attr('height', H);
+  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+  g.selectAll('line.gy').data(yTicks.filter(d => d !== 0)).join('line')
+    .attr('x1', 0).attr('x2', iW).attr('y1', d => y(d)).attr('y2', d => y(d))
+    .style('stroke', '#aaaaaa').style('stroke-dasharray', '2').style('stroke-opacity', 0.4);
+  g.append('line').attr('x1', 0).attr('x2', iW).attr('y1', y(0)).attr('y2', y(0))
+    .style('stroke', '#777777').style('stroke-width', 1);
+  g.append('g').call(d3.axisLeft(y).tickValues(yTicks).tickSize(0).tickPadding(8).tickFormat(d => d === 10 ? '10%' : d))
+    .call(a => a.select('.domain').remove())
+    .selectAll('text').style('font-size', '13px').style('fill', '#999999').style('font-family', FONT);
+  g.append('g').attr('transform', `translate(0,${iH})`)
+    .call(d3.axisBottom(x).tickValues([2015, 2020, 2025]).tickSize(0).tickPadding(8).tickFormat(d3.format('d')))
+    .call(a => a.select('.domain').remove())
+    .selectAll('text').style('font-size', '13px').style('fill', '#999999').style('font-family', FONT);
+
+  const line = d3.line().x((d, i) => x(YEARS[i])).y(d => y(d));
+  SERIES.forEach(s => g.append('path').datum(s.v).attr('d', line)
+    .attr('fill', 'none').attr('stroke', s.c).attr('stroke-width', 2).attr('stroke-linejoin', 'round'));
+
+  if (direct) {
+    // 선 끝에 이름을 직접 표시. 끝값이 가까운 한국과 일본은 겹치지 않도록 위아래로 조금 벌림
+    const ends = SERIES.map(s => ({ ...s, ty: y(s.v[s.v.length - 1]) })).sort((a, b) => a.ty - b.ty);
+    for (let i = 1; i < ends.length; i++) {
+      if (ends[i].ty - ends[i - 1].ty < 16) ends[i].ty = ends[i - 1].ty + 16;
+    }
+    ends.forEach(s => g.append('text').attr('x', iW + 6).attr('y', s.ty).attr('dy', '0.34em')
+      .style('font-size', '13px').style('font-weight', 700).style('fill', s.c).style('font-family', FONT).text(s.k));
+  } else {
+    // 차트 아래 범례
+    const lg = d3.select(sel).append('div').attr('class', 'legend');
+    SERIES.forEach(s => {
+      const it = lg.append('span').attr('class', 'legend-item');
+      it.append('i').style('background', s.c);
+      it.node().append(s.k);
+    });
+  }
+}
+draw('#legend', false);
+draw('#direct', true);
+</script>
+</body>
+</html>
